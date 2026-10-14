@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Mia Cucina</title>
+
+<!-- Firebase SDK (compat, via CDN) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f1ea;
+    color: #333;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { text-align: center; margin-bottom: 20px; color: #b85c38; }
+  .sync-status {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 15px;
+  }
+  .sync-status.ok { color: #2e7d32; }
+  .sync-status.err { color: #c0392b; }
+  .sync-status.loading { color: #f57c00; }
+  .tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #b85c38;
+  }
+  .tab {
+    padding: 12px 20px;
+    cursor: pointer;
+    background: #e8ddd0;
+    border: none;
+    border-radius: 8px 8px 0 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #666;
+    transition: all 0.2s;
+  }
+  .tab.active { background: #b85c38; color: white; }
+  .panel { display: none; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .panel.active { display: block; }
+  .form-row { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+  input, select, button {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  input[type="text"], input[type="number"] { flex: 1; min-width: 80px; }
+  select { min-width: 100px; }
+  button {
+    background: #b85c38;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+  button:hover { background: #9a4a2d; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  button.small { padding: 6px 10px; font-size: 12px; background: #ccc; }
+  button.small:hover { background: #999; }
+  button.danger { background: #c0392b; }
+  button.danger:hover { background: #922b21; }
+  button.edit { background: #2196f3; }
+  button.edit:hover { background: #1976d2; }
+  button.save { background: #4caf50; }
+  button.save:hover { background: #388e3c; }
+  .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: #fafafa;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border-left: 4px solid #b85c38;
+  }
+  .item.necessario { border-left-color: #2196f3; }
+  .item.mismatch { border-left-color: #ff9800; background: #fff8e1; }
+  .item.editing {
+    background: #fff9e6;
+    border-left-color: #ffc107;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .item-info { flex: 1; }
+  .item-name { font-weight: 600; }
+  .item-qty { color: #666; font-size: 13px; }
+  .item-actions { display: flex; gap: 5px; }
+  .edit-form-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .edit-form-row input, .edit-form-row select { flex: 1; min-width: 70px; }
+  .edit-form-actions { display: flex; gap: 6px; }
+  .shopping-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #fff3e0;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border-left: 4px solid #ff9800;
+  }
+  .shopping-item.mismatch {
+    background: #ffebee;
+    border-left-color: #c0392b;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .mismatch-error {
+    background: #ffebee;
+    border-left: 4px solid #c0392b;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    color: #8b0000;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .empty { text-align: center; color: #999; padding: 30px; font-style: italic; }
+  .section-title { margin-bottom: 15px; color: #555; }
+  .base-list {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 15px;
+    max-height: 250px;
+    overflow-y: auto;
+  }
+  .base-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+  .base-item:hover { background: #e8ddd0; }
+  .toggle-suggestions {
+    background: #6c757d;
+    font-size: 12px;
+    padding: 6px 12px;
+    margin-bottom: 10px;
+  }
+  .toggle-suggestions:hover { background: #5a6268; }
+</style>
+</head>
+<body>
+
+<h1>🍳 La Mia Cucina</h1>
+<div id="sync-status" class="sync-status loading">⏳ Connessione a Firebase...</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('dispensa', event)">📦 Dispensa</button>
+  <button class="tab" onclick="showTab('necessario', event)">📋 Necessario</button>
+  <button class="tab" onclick="showTab('spesa', event)">🛒 Spesa</button>
+</div>
+
+<!-- DISPENSA -->
+<div id="dispensa" class="panel active">
+  <h2 class="section-title">Aggiungi ingrediente</h2>
+  <button class="toggle-suggestions" onclick="toggleSuggestions('dispensa')">📋 Mostra/Nascondi lista ingredienti</button>
+  <div id="dispensa-suggestions" class="base-list" style="display:none;"></div>
+  <div class="form-row">
+    <input type="text" id="ing-name" placeholder="Nome ingrediente (es. Pasta)" list="ing-list">
+    <datalist id="ing-list"></datalist>
+    <input type="number" id="ing-qty" placeholder="Qtà" min="0" step="0.1" style="max-width:100px;">
+    <select id="ing-unit">
+      <option value="pz">pz</option>
+      <option value="g">g</option>
+      <option value="kg">kg</option>
+      <option value="ml">ml</option>
+      <option value="l">l</option>
+      <option value="cucchiai">cucchiai</option>
+      <option value="cucchiaini">cucchiaini</option>
+      <option value="confezioni">conf.</option>
+    </select>
+    <button onclick="addToPantry()">➕ Aggiungi</button>
+  </div>
+  <button class="danger" onclick="clearPantry()" style="margin-bottom:15px;">🗑️ SVUOTA DISPENSA</button>
+  <h2 class="section-title">Hai in dispensa</h2>
+  <div id="pantry-list"></div>
+</div>
+
+<!-- NECESSARIO -->
+<div id="necessario" class="panel">
+  <h2 class="section-title">Aggiungi ingrediente necessario</h2>
+  <button class="toggle-suggestions" onclick="toggleSuggestions('necessario')">📋 Mostra/Nascondi lista ingredienti</button>
+  <div id="necessario-suggestions" class="base-list" style="display:none;"></div>
+  <div class="form-row">
+    <input type="text" id="nec-name" placeholder="Nome ingrediente (es. Pasta)" list="ing-list">
+    <input type="number" id="nec-qty" placeholder="Qtà" min="0" step="0.1" style="max-width:100px;">
+    <select id="nec-unit">
+      <option value="pz">pz</option>
+      <option value="g">g</option>
+      <option value="kg">kg</option>
+      <option value="ml">ml</option>
+      <option value="l">l</option>
+      <option value="cucchiai">cucchiai</option>
+      <option value="cucchiaini">cucchiaini</option>
+      <option value="confezioni">conf.</option>
+    </select>
+    <button onclick="addToNeeded()">➕ Aggiungi</button>
+  </div>
+  <button class="danger" onclick="clearNeeded()" style="margin-bottom:15px;">🗑️ SVUOTA NECESSARIO</button>
+  <h2 class="section-title">Ingredienti necessari</h2>
+  <div id="needed-list"></div>
+</div>
+
+<!-- SPESA -->
+<div id="spesa" class="panel">
+  <h2 class="section-title">🛒 Cosa comprare</h2>
+  <button onclick="calculateShopping()" style="margin-bottom:15px;">🧮 Calcola spesa</button>
+  <div id="shopping-result"></div>
+</div>
+
+<script>
+// ============================================================
+// 🔥 CONFIGURAZIONE FIREBASE
+// Sostituisci questo oggetto con le credenziali del tuo progetto
+// (le trovi in Firebase Console → Impostazioni progetto → Le tue app)
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAmttJRN9YiQkZd0evhYLwfu3fu5J821qE",
+  authDomain: "cucina-dispensa-spesa.firebaseapp.com",
+  projectId: "cucina-dispensa-spesa",
+  storageBucket: "cucina-dispensa-spesa.firebasestorage.app",
+  messagingSenderId: "904852261111",
+  appId: "1:904852261111:web:b1916de0354257023cabf2"
+};
+
+// Inizializza Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ============================================================
+// LISTA BASE PREDEFINITA
+// ============================================================
+const DEFAULT_INGREDIENTS = [
+  "Pasta", "Riso", "Farina", "Farina integrale", "Pane",
+  "Olio extravergine d'oliva", "Olio di semi", "Burro",
+  "Sale", "Pepe", "Zucchero", "Aceto",
+  "Pomodoro", "Pomodori pelati", "Passata di pomodoro", "Concentrato di pomodoro",
+  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchina", "Melanzana", "Patata", "Peperone",
+  "Insalata", "Spinaci", "Broccoli",
+  "Basilico", "Prezzemolo", "Rosmarino", "Salvia", "Timo", "Origano",
+  "Uova", "Latte", "Panna",
+  "Parmigiano", "Mozzarella", "Ricotta", "Gorgonzola",
+  "Tonno in scatola", "Salmone",
+  "Fagioli", "Ceci", "Lenticchie", "Piselli",
+  "Limone", "Lievito",
+  "Miele", "Marmellata",
+  "Besciamella", "Brodo"
+];
+
+// ============================================================
+// STATO (ora sincronizzato con Firestore)
+// ============================================================
+let pantry = {};
+let needed = {};
+let ingredientBase = [];
+let firebaseReady = false;
+
+const statusEl = document.getElementById('sync-status');
+
+function setSyncStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = 'sync-status ' + cls;
+}
+
+// ============================================================
+// FIRESTORE: caricamento iniziale + listener real-time
+// ============================================================
+async function initFirebase() {
+  try {
+    const docRef = db.collection('appData').doc('main');
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      // Primo avvio: creo il documento con la lista base
+      await docRef.set({
+        pantry: {},
+        needed: {},
+        ingredientBase: DEFAULT_INGREDIENTS
+      });
+      pantry = {};
+      needed = {};
+      ingredientBase = [...DEFAULT_INGREDIENTS];
+    } else {
+      const data = docSnap.data();
+      pantry = data.pantry || {};
+      needed = data.needed || {};
+      ingredientBase = data.ingredientBase || [...DEFAULT_INGREDIENTS];
+    }
+
+    // Listener real-time: se i dati cambiano (da altro dispositivo) si aggiornano qui
+    docRef.onSnapshot((doc) => {
+      if (doc.exists) {
+        const data = doc.data();
+        pantry = data.pantry || {};
+        needed = data.needed || {};
+        ingredientBase = data.ingredientBase || [];
+        renderAll();
+        setSyncStatus('✅ Sincronizzato', 'ok');
+      }
+    }, (error) => {
+      console.error('Errore listener:', error);
+      setSyncStatus('❌ Errore sincronizzazione: ' + error.message, 'err');
+    });
+
+    firebaseReady = true;
+    renderAll();
+    updateDatalists();
+    setSyncStatus('✅ Sincronizzato', 'ok');
+  } catch (error) {
+    console.error('Errore init Firebase:', error);
+    setSyncStatus('❌ Errore Firebase: ' + error.message + ' — Controlla la configurazione', 'err');
+  }
+}
+
+// Salva tutto su Firestore
+async function save() {
+  if (!firebaseReady) return;
+  try {
+    setSyncStatus('💾 Salvataggio...', 'loading');
+    await db.collection('appData').doc('main').set({
+      pantry,
+      needed,
+      ingredientBase
+    });
+    setSyncStatus('✅ Sincronizzato', 'ok');
+  } catch (error) {
+    console.error('Errore save:', error);
+    setSyncStatus('❌ Errore salvataggio: ' + error.message, 'err');
+  }
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function showTab(id, evt) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  evt.target.classList.add('active');
+  document.getElementById(id).classList.add('active');
+  if (id === 'spesa') calculateShopping();
+}
+
+// ============================================================
+// UTILITÀ
+// ============================================================
+function capitalizeFirst(str) {
+  str = str.trim();
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+function addToIngredientBase(name) {
+  const capitalizedName = capitalizeFirst(name);
+  if (!capitalizedName) return '';
+  if (!ingredientBase.includes(capitalizedName)) {
+    ingredientBase.push(capitalizedName);
+    ingredientBase.sort((a, b) => a.localeCompare(b, 'it'));
+    save();
+    updateDatalists();
+    renderBaseList('dispensa');
+    renderBaseList('necessario');
+  }
+  return capitalizedName;
+}
+
+function checkUnitMismatch(name, unit, currentSection) {
+  const otherList = currentSection === 'dispensa' ? needed : pantry;
+  const otherSectionName = currentSection === 'dispensa' ? 'Necessario' : 'Dispensa';
+  if (otherList[name] && otherList[name].unit !== unit) {
+    return {
+      mismatch: true,
+      message: `⚠️ Attenzione: "${name}" in ${otherSectionName} è in "${otherList[name].unit}", ma qui lo stai inserendo in "${unit}". Le unità di misura non corrispondono!`,
+      otherUnit: otherList[name].unit
+    };
+  }
+  return { mismatch: false, message: '', otherUnit: '' };
+}
+
+function toggleSuggestions(section) {
+  const suggDiv = document.getElementById(`${section}-suggestions`);
+  if (suggDiv.style.display === 'none') {
+    suggDiv.style.display = 'block';
+    renderBaseList(section);
+  } else {
+    suggDiv.style.display = 'none';
+  }
+}
+
+function renderBaseList(section) {
+  const suggDiv = document.getElementById(`${section}-suggestions`);
+  if (ingredientBase.length === 0) {
+    suggDiv.innerHTML = '<div class="empty" style="padding:10px;">Nessun ingrediente nella lista base</div>';
+    return;
+  }
+  suggDiv.innerHTML = ingredientBase.map(ing => `
+    <div class="base-item" onclick="selectFromBase('${section}', '${ing.replace(/'/g,"\\'")}')">${ing}</div>
+  `).join('');
+}
+
+function selectFromBase(section, name) {
+  if (section === 'dispensa') document.getElementById('ing-name').value = name;
+  else if (section === 'necessario') document.getElementById('nec-name').value = name;
+}
+
+function renderAll() {
+  renderPantry();
+  renderNeeded();
+  updateDatalists();
+}
+
+// ============================================================
+// DISPENSA
+// ============================================================
+function addToPantry() {
+  let name = document.getElementById('ing-name').value.trim();
+  const qty = parseFloat(document.getElementById('ing-qty').value);
+  const unit = document.getElementById('ing-unit').value;
+  if (!name || isNaN(qty) || qty <= 0) { alert('Compila nome e quantità!'); return; }
+
+  name = addToIngredientBase(name);
+
+  const check = checkUnitMismatch(name, unit, 'dispensa');
+  if (check.mismatch) {
+    if (!confirm(check.message + '\n\nVuoi comunque procedere?')) return;
+  }
+
+  if (pantry[name] && pantry[name].unit !== unit) {
+    if (!confirm(`Attenzione: in dispensa "${name}" è in ${pantry[name].unit}. Vuoi sovrascrivere con ${unit}?`)) return;
+  }
+  pantry[name] = { qty, unit };
+  save();
+  renderAll();
+  document.getElementById('ing-name').value = '';
+  document.getElementById('ing-qty').value = '';
+}
+
+function removeFromPantry(name) {
+  delete pantry[name];
+  save();
+  renderAll();
+}
+
+function clearPantry() {
+  if (confirm('Sei sicuro di voler svuotare completamente la dispensa?')) {
+    pantry = {};
+    save();
+    renderAll();
+  }
+}
+
+function startEditPantry(oldName) {
+  const item = pantry[oldName];
+  if (!item) return;
+  const list = document.getElementById('pantry-list');
+  const div = list.querySelector(`[data-name="${CSS.escape(oldName)}"]`);
+  if (!div) return;
+
+  div.classList.add('editing');
+  div.innerHTML = `
+    <div style="font-weight:600; color:#b85c38;">✏️ Modifica ingrediente</div>
+    <div class="edit-form-row">
+      <input type="text" id="edit-pantry-name" value="${oldName.replace(/"/g,'&quot;')}" list="ing-list">
+      <input type="number" id="edit-pantry-qty" value="${item.qty}" min="0" step="0.1">
+      <select id="edit-pantry-unit">
+        ${['pz','g','kg','ml','l','cucchiai','cucchiaini','confezioni'].map(u => `<option value="${u}" ${u===item.unit?'selected':''}>${u}</option>`).join('')}
+      </select>
+    </div>
+    <div class="edit-form-actions">
+      <button class="save" onclick="saveEditPantry('${oldName.replace(/'/g,"\\'")}')">✓ Salva</button>
+      <button class="small" onclick="renderPantry()">✖ Annulla</button>
+    </div>
+  `;
+  document.getElementById('edit-pantry-name').focus();
+}
+
+function saveEditPantry(oldName) {
+  let newName = document.getElementById('edit-pantry-name').value.trim();
+  const newQty = parseFloat(document.getElementById('edit-pantry-qty').value);
+  const newUnit = document.getElementById('edit-pantry-unit').value;
+
+  if (!newName || isNaN(newQty) || newQty <= 0) { alert('Compila nome e quantità!'); return; }
+
+  newName = addToIngredientBase(newName);
+
+  const checkName = (newName === oldName) ? oldName : newName;
+  const check = checkUnitMismatch(checkName, newUnit, 'dispensa');
+  if (check.mismatch) {
+    if (!confirm(check.message + '\n\nVuoi comunque procedere?')) return;
+  }
+
+  if (newName !== oldName && pantry[newName]) {
+    if (!confirm(`"${newName}" esiste già in dispensa (${pantry[newName].qty} ${pantry[newName].unit}). Vuoi unire?`)) return;
+    delete pantry[oldName];
+  } else if (newName !== oldName) {
+    delete pantry[oldName];
+  }
+
+  pantry[newName] = { qty: newQty, unit: newUnit };
+  save();
+  renderAll();
+}
+
+function renderPantry() {
+  const list = document.getElementById('pantry-list');
+  const keys = Object.keys(pantry).sort((a, b) => a.localeCompare(b, 'it'));
+  if (keys.length === 0) {
+    list.innerHTML = '<div class="empty">Dispensa vuota. Aggiungi qualcosa!</div>';
+    return;
+  }
+  list.innerHTML = keys.map(k => {
+    const hasMismatch = needed[k] && needed[k].unit !== pantry[k].unit;
+    const mismatchClass = hasMismatch ? ' mismatch' : '';
+    const mismatchHint = hasMismatch ? `<div style="color:#e65100; font-size:12px; margin-top:3px;">⚠️ In Necessario è in "${needed[k].unit}"</div>` : '';
+    return `
+    <div class="item${mismatchClass}" data-name="${k.replace(/"/g,'&quot;')}">
+      <div class="item-info">
+        <div class="item-name">${k}</div>
+        <div class="item-qty">${pantry[k].qty} ${pantry[k].unit}</div>
+        ${mismatchHint}
+      </div>
+      <div class="item-actions">
+        <button class="small edit" onclick="startEditPantry('${k.replace(/'/g,"\\'")}')">✏️</button>
+        <button class="small danger" onclick="removeFromPantry('${k.replace(/'/g,"\\'")}')">🗑️</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+// ============================================================
+// NECESSARIO
+// ============================================================
+function addToNeeded() {
+  let name = document.getElementById('nec-name').value.trim();
+  const qty = parseFloat(document.getElementById('nec-qty').value);
+  const unit = document.getElementById('nec-unit').value;
+  if (!name || isNaN(qty) || qty <= 0) { alert('Compila nome e quantità!'); return; }
+
+  name = addToIngredientBase(name);
+
+  const check = checkUnitMismatch(name, unit, 'necessario');
+  if (check.mismatch) {
+    if (!confirm(check.message + '\n\nVuoi comunque procedere?')) return;
+  }
+
+  if (needed[name] && needed[name].unit !== unit) {
+    if (!confirm(`Attenzione: "${name}" è in ${needed[name].unit}. Vuoi sovrascrivere con ${unit}?`)) return;
+  }
+  needed[name] = { qty, unit };
+  save();
+  renderAll();
+  document.getElementById('nec-name').value = '';
+  document.getElementById('nec-qty').value = '';
+}
+
+function removeFromNeeded(name) {
+  delete needed[name];
+  save();
+  renderAll();
+}
+
+function clearNeeded() {
+  if (confirm('Sei sicuro di voler svuotare la lista del necessario?')) {
+    needed = {};
+    save();
+    renderAll();
+  }
+}
+
+function startEditNeeded(oldName) {
+  const item = needed[oldName];
+  if (!item) return;
+  const list = document.getElementById('needed-list');
+  const div = list.querySelector(`[data-name="${CSS.escape(oldName)}"]`);
+  if (!div) return;
+
+  div.classList.add('editing');
+  div.innerHTML = `
+    <div style="font-weight:600; color:#2196f3;">✏️ Modifica ingrediente</div>
+    <div class="edit-form-row">
+      <input type="text" id="edit-nec-name" value="${oldName.replace(/"/g,'&quot;')}" list="ing-list">
+      <input type="number" id="edit-nec-qty" value="${item.qty}" min="0" step="0.1">
+      <select id="edit-nec-unit">
+        ${['pz','g','kg','ml','l','cucchiai','cucchiaini','confezioni'].map(u => `<option value="${u}" ${u===item.unit?'selected':''}>${u}</option>`).join('')}
+      </select>
+    </div>
+    <div class="edit-form-actions">
+      <button class="save" onclick="saveEditNeeded('${oldName.replace(/'/g,"\\'")}')">✓ Salva</button>
+      <button class="small" onclick="renderNeeded()">✖ Annulla</button>
+    </div>
+  `;
+  document.getElementById('edit-nec-name').focus();
+}
+
+function saveEditNeeded(oldName) {
+  let newName = document.getElementById('edit-nec-name').value.trim();
+  const newQty = parseFloat(document.getElementById('edit-nec-qty').value);
+  const newUnit = document.getElementById('edit-nec-unit').value;
+
+  if (!newName || isNaN(newQty) || newQty <= 0) { alert('Compila nome e quantità!'); return; }
+
+  newName = addToIngredientBase(newName);
+
+  const checkName = (newName === oldName) ? oldName : newName;
+  const check = checkUnitMismatch(checkName, newUnit, 'necessario');
+  if (check.mismatch) {
+    if (!confirm(check.message + '\n\nVuoi comunque procedere?')) return;
+  }
+
+  if (newName !== oldName && needed[newName]) {
+    if (!confirm(`"${newName}" esiste già nel necessario (${needed[newName].qty} ${needed[newName].unit}). Vuoi unire?`)) return;
+    delete needed[oldName];
+  } else if (newName !== oldName) {
+    delete needed[oldName];
+  }
+
+  needed[newName] = { qty: newQty, unit: newUnit };
+  save();
+  renderAll();
+}
+
+function renderNeeded() {
+  const list = document.getElementById('needed-list');
+  const keys = Object.keys(needed).sort((a, b) => a.localeCompare(b, 'it'));
+  if (keys.length === 0) {
+    list.innerHTML = '<div class="empty">Nessun ingrediente necessario. Aggiungi qualcosa!</div>';
+    return;
+  }
+  list.innerHTML = keys.map(k => {
+    const hasMismatch = pantry[k] && pantry[k].unit !== needed[k].unit;
+    const mismatchClass = hasMismatch ? ' mismatch' : '';
+    const mismatchHint = hasMismatch ? `<div style="color:#e65100; font-size:12px; margin-top:3px;">⚠️ In Dispensa è in "${pantry[k].unit}"</div>` : '';
+    return `
+    <div class="item necessario${mismatchClass}" data-name="${k.replace(/"/g,'&quot;')}">
+      <div class="item-info">
+        <div class="item-name">${k}</div>
+        <div class="item-qty">${needed[k].qty} ${needed[k].unit}</div>
+        ${mismatchHint}
+      </div>
+      <div class="item-actions">
+        <button class="small edit" onclick="startEditNeeded('${k.replace(/'/g,"\\'")}')">✏️</button>
+        <button class="small danger" onclick="removeFromNeeded('${k.replace(/'/g,"\\'")}')">🗑️</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+// ============================================================
+// SPESA
+// ============================================================
+function calculateShopping() {
+  const result = document.getElementById('shopping-result');
+  const neededKeys = Object.keys(needed);
+
+  if (neededKeys.length === 0) {
+    result.innerHTML = '<div class="empty">Lista del necessario vuota. Vai su "Necessario" per aggiungere gli ingredienti che ti servono.</div>';
+    return;
+  }
+
+  const sorted = neededKeys.sort((a, b) => a.localeCompare(b, 'it'));
+  const ok = [];
+  const mismatch = [];
+
+  sorted.forEach(name => {
+    const need = needed[name];
+    const have = pantry[name];
+
+    if (have && have.unit !== need.unit) {
+      mismatch.push({ name, need, have });
+    } else {
+      const haveQty = have ? have.qty : 0;
+      const diff = need.qty - haveQty;
+      ok.push({ name, need, have, diff, unit: need.unit });
+    }
+  });
+
+  let html = '';
+
+  if (mismatch.length > 0) {
+    html += `<div class="mismatch-error">⚠️ Attenzione: ${mismatch.length} ingrediente/i ha unità di misura diverse tra Dispensa e Necessario. Correggi prima di poter calcolare la spesa per questi ingredienti.</div>`;
+    html += '<h3 style="color:#c0392b; margin:15px 0 10px;">❌ Unità di misura da correggere</h3>';
+    html += mismatch.map(s => `
+      <div class="shopping-item mismatch">
+        <div style="font-weight:600;">${s.name}</div>
+        <div style="font-size:13px;">
+          📦 In dispensa: <strong>${s.have.qty} ${s.have.unit}</strong><br>
+          📋 Nel necessario: <strong>${s.need.qty} ${s.need.unit}</strong>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const toBuy = ok.filter(s => s.diff > 0);
+
+  if (toBuy.length > 0) {
+    html += '<h3 style="color:#b85c38; margin:15px 0 10px;">🛒 DA COMPRARE</h3>';
+    html += toBuy.map(s => `
+      <div class="shopping-item">
+        <div class="item-name">${s.name}</div>
+        <div style="font-weight:700; color:#e65100; font-size:18px;">${s.diff} ${s.unit}</div>
+      </div>
+    `).join('');
+  }
+
+  if (toBuy.length === 0 && mismatch.length === 0) {
+    html = '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">🎉 Hai già tutto in dispensa!</div>';
+  }
+
+  result.innerHTML = html;
+}
+
+// ============================================================
+// DATALIST (autocomplete)
+// ============================================================
+function updateDatalists() {
+  const allNames = new Set([...ingredientBase]);
+  const html = [...allNames].sort((a, b) => a.localeCompare(b, 'it')).map(n => `<option value="${n}">`).join('');
+  document.getElementById('ing-list').innerHTML = html;
+}
+
+// ============================================================
+// AVVIO
+// ============================================================
+initFirebase();
+</script>
+
+</body>
+</html>
