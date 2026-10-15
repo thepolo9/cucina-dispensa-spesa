@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="icon.png">
 <title>La Mia Cucina</title>
 
-<!-- Firebase SDK (compat, via CDN) -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
@@ -21,7 +21,20 @@
     max-width: 900px;
     margin: 0 auto;
   }
-  h1 { text-align: center; margin-bottom: 20px; color: #b85c38; }
+  h1 { text-align: center; margin-bottom: 5px; color: #b85c38; }
+  .header-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+  }
+  .converter-btn {
+    background: #2196f3;
+    color: white;
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 20px;
+  }
+  .converter-btn:hover { background: #1976d2; }
   .sync-status {
     text-align: center;
     font-size: 12px;
@@ -176,11 +189,89 @@
     margin-bottom: 10px;
   }
   .toggle-suggestions:hover { background: #5a6268; }
+
+  /* MODAL CALCOLATRICE */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  }
+  .modal h2 {
+    color: #2196f3;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 20px;
+  }
+  .modal-close {
+    float: right;
+    background: #ccc;
+    color: #333;
+    padding: 4px 10px;
+    font-size: 14px;
+    border-radius: 50%;
+    line-height: 1;
+  }
+  .modal-close:hover { background: #999; }
+  .conv-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  .conv-row label {
+    min-width: 50px;
+    font-weight: 600;
+    color: #555;
+  }
+  .conv-row input, .conv-row select { flex: 1; }
+  .conv-result {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    padding: 15px;
+    border-radius: 6px;
+    margin-top: 15px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1565c0;
+  }
+  .conv-result.error {
+    background: #ffebee;
+    border-left-color: #c0392b;
+    color: #8b0000;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .swap-btn {
+    background: #6c757d;
+    padding: 6px 12px;
+    font-size: 16px;
+    margin: 0 auto;
+    display: block;
+  }
+  .swap-btn:hover { background: #5a6268; }
 </style>
 </head>
 <body>
 
 <h1>🍳 La Mia Cucina</h1>
+<div class="header-row">
+  <button class="converter-btn" onclick="openConverter()">🧮 Converti unità</button>
+</div>
 <div id="sync-status" class="sync-status loading">⏳ Connessione a Firebase...</div>
 
 <div class="tabs">
@@ -245,6 +336,50 @@
   <div id="shopping-result"></div>
 </div>
 
+<!-- MODAL CALCOLATRICE -->
+<div id="converter-modal" class="modal-overlay" onclick="if(event.target===this) closeConverter()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeConverter()">✕</button>
+    <h2>🧮 Converti unità di misura</h2>
+
+    <div class="conv-row">
+      <label>Da:</label>
+      <input type="number" id="conv-value" placeholder="Valore" step="0.01" min="0" oninput="convert()">
+    </div>
+    <div class="conv-row">
+      <label>Unità:</label>
+      <select id="conv-from" onchange="convert()">
+        <option value="g">g</option>
+        <option value="kg">kg</option>
+        <option value="ml">ml</option>
+        <option value="l">l</option>
+        <option value="cucchiai">cucchiai</option>
+        <option value="cucchiaini">cucchiaini</option>
+        <option value="pz">pz</option>
+        <option value="confezioni">conf.</option>
+      </select>
+    </div>
+
+    <button class="swap-btn" onclick="swapUnits()" title="Inverti">⇅ Inverti</button>
+
+    <div class="conv-row" style="margin-top:12px;">
+      <label>A:</label>
+      <select id="conv-to" onchange="convert()">
+        <option value="g">g</option>
+        <option value="kg" selected>kg</option>
+        <option value="ml">ml</option>
+        <option value="l">l</option>
+        <option value="cucchiai">cucchiai</option>
+        <option value="cucchiaini">cucchiaini</option>
+        <option value="pz">pz</option>
+        <option value="confezioni">conf.</option>
+      </select>
+    </div>
+
+    <div id="conv-result" class="conv-result">Inserisci un valore</div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // 🔥 CONFIGURAZIONE FIREBASE
@@ -288,7 +423,7 @@ let pantry = {};
 let needed = {};
 let ingredientBase = [];
 let firebaseReady = false;
-let shoppingChecked = new Set(); // Track checked items
+let shoppingChecked = new Set();
 
 const statusEl = document.getElementById('sync-status');
 
@@ -721,7 +856,6 @@ function calculateShopping() {
     }
   });
 
-  // Rimuovi dal Set gli articoli che non sono più nella lista
   const currentNames = new Set(toBuy.map(item => item.name));
   shoppingChecked.forEach(name => {
     if (!currentNames.has(name)) {
@@ -729,7 +863,6 @@ function calculateShopping() {
     }
   });
 
-  // Separa in non comprati e comprati
   const notChecked = toBuy.filter(item => !item.checked);
   const checked = toBuy.filter(item => item.checked);
 
@@ -778,6 +911,85 @@ function calculateShopping() {
   }
 
   result.innerHTML = html;
+}
+
+// ============================================================
+// CALCOLATRICE CONVERSIONE UNITÀ
+// ============================================================
+function openConverter() {
+  document.getElementById('converter-modal').classList.add('active');
+  convert();
+}
+
+function closeConverter() {
+  document.getElementById('converter-modal').classList.remove('active');
+}
+
+function swapUnits() {
+  const from = document.getElementById('conv-from');
+  const to = document.getElementById('conv-to');
+  const temp = from.value;
+  from.value = to.value;
+  to.value = temp;
+  convert();
+}
+
+function convert() {
+  const value = parseFloat(document.getElementById('conv-value').value);
+  const from = document.getElementById('conv-from').value;
+  const to = document.getElementById('conv-to').value;
+  const resultEl = document.getElementById('conv-result');
+
+  if (isNaN(value) || value <= 0) {
+    resultEl.textContent = 'Inserisci un valore';
+    resultEl.className = 'conv-result';
+    return;
+  }
+
+  if (from === to) {
+    resultEl.textContent = `${value} ${from} = ${value} ${to}`;
+    resultEl.className = 'conv-result';
+    return;
+  }
+
+  // Fattori di conversione (tutto convertito in grammi o millilitri come base)
+  const toBase = {
+    'g': 1,
+    'kg': 1000,
+    'ml': 1,
+    'l': 1000,
+    'cucchiai': 15,  // 1 cucchiaio = 15g (approssimativo)
+    'cucchiaini': 5, // 1 cucchiaino = 5g (approssimativo)
+    'pz': 1,
+    'confezioni': 1
+  };
+
+  // Controlla se le unità sono compatibili
+  const weightUnits = ['g', 'kg', 'cucchiai', 'cucchiaini'];
+  const volumeUnits = ['ml', 'l'];
+  const countUnits = ['pz', 'confezioni'];
+
+  const isFromWeight = weightUnits.includes(from);
+  const isFromVolume = volumeUnits.includes(from);
+  const isFromCount = countUnits.includes(from);
+  const isToWeight = weightUnits.includes(to);
+  const isToVolume = volumeUnits.includes(to);
+  const isToCount = countUnits.includes(to);
+
+  if ((isFromWeight && !isToWeight) || (isFromVolume && !isToVolume) || (isFromCount && !isToCount)) {
+    resultEl.textContent = '⚠️ Unità incompatibili!';
+    resultEl.className = 'conv-result error';
+    return;
+  }
+
+  // Conversione
+  const baseValue = value * toBase[from];
+  const result = baseValue / toBase[to];
+
+  // Formatta il risultato
+  const formatted = result % 1 === 0 ? result.toFixed(0) : result.toFixed(2);
+  resultEl.textContent = `${value} ${from} = ${formatted} ${to}`;
+  resultEl.className = 'conv-result';
 }
 
 // ============================================================
