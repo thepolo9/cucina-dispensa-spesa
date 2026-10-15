@@ -190,7 +190,7 @@
   }
   .toggle-suggestions:hover { background: #5a6268; }
 
-  /* RICETTE - Layout a due colonne */
+  /* RICETTE */
   .recipes-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -507,11 +507,11 @@ const db = firebase.firestore();
 // LISTA BASE PREDEFINITA
 // ============================================================
 const DEFAULT_INGREDIENTS = [
-  "Pasta", "Riso", "Farina", "Farina integrale", "Pane",
+  "Pasta", "Riso", "Farina integrale", "Pane",
   "Olio extravergine d'oliva", "Olio di semi", "Burro",
   "Sale", "Pepe", "Zucchero", "Aceto",
   "Pomodoro", "Pomodori pelati", "Passata di pomodoro", "Concentrato di pomodoro",
-  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchina", "Melanzana", "Patata", "Peperone",
+  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchine", "Melanzane", "Patate", "Peperoni",
   "Insalata", "Spinaci", "Broccoli",
   "Basilico", "Prezzemolo", "Rosmarino", "Salvia", "Timo", "Origano",
   "Uova", "Latte", "Panna",
@@ -662,6 +662,7 @@ function checkUnitMismatch(name, unit, currentSection) {
 
 function toggleSuggestions(section) {
   const suggDiv = document.getElementById(`${section}-suggestions`);
+  if (!suggDiv) return;
   if (suggDiv.style.display === 'none') {
     suggDiv.style.display = 'block';
     renderBaseList(section);
@@ -691,7 +692,7 @@ function selectFromBase(section, name) {
 function renderAll() {
   renderPantry();
   renderNeeded();
-  renderRecipes();
+  renderRecipesList();
   updateDatalists();
   if (document.getElementById('spesa').classList.contains('active')) {
     calculateShopping();
@@ -1041,6 +1042,7 @@ function addSelectedToNeeded() {
     return;
   }
 
+  let count = 0;
   selectedRecipeIngredients.forEach(index => {
     const ing = tempRecipeIngredients[index];
     if (!needed[ing.name]) {
@@ -1048,12 +1050,13 @@ function addSelectedToNeeded() {
     } else {
       needed[ing.name].qty += ing.qty;
     }
+    count++;
   });
 
   save();
   selectedRecipeIngredients.clear();
   renderRecipeEditor();
-  alert(`✅ ${selectedRecipeIngredients.size} ingrediente/i aggiunto/i al necessario!`);
+  alert(`✅ ${count} ingrediente/i aggiunto/i al necessario!`);
 }
 
 function renderRecipesList() {
@@ -1065,4 +1068,274 @@ function renderRecipesList() {
   list.innerHTML = recipes.map(r => `
     <div class="recipe-card ${r.id === currentRecipeId ? 'active' : ''}" onclick="selectRecipe('${r.id}')">
       <div class="recipe-card-title">${r.name}</div>
-      <div class="recipe-card-count">${r.ingredients.length} ingredient
+      <div class="recipe-card-count">${r.ingredients.length} ingredient${r.ingredients.length === 1 ? 'e' : 'i'}</div>
+      <div class="recipe-card-actions">
+        <button class="small edit" onclick="event.stopPropagation(); duplicateRecipe('${r.id}')">📋 Duplica</button>
+        <button class="small danger" onclick="event.stopPropagation(); deleteRecipe('${r.id}')">🗑️ Elimina</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderRecipeEditor() {
+  const editor = document.getElementById('recipe-editor');
+  if (!currentRecipeId) {
+    editor.innerHTML = '<div class="empty">Seleziona una ricetta o creane una nuova</div>';
+    return;
+  }
+
+  const recipe = recipes.find(r => r.id === currentRecipeId);
+  const recipeName = recipe ? recipe.name : '';
+
+  editor.innerHTML = `
+    <h2 class="section-title">Modifica ricetta</h2>
+    <div class="form-row">
+      <input type="text" id="recipe-name" value="${recipeName.replace(/"/g,'&quot;')}" placeholder="Nome ricetta">
+    </div>
+
+    <h3 style="margin:15px 0 10px; font-size:14px; color:#666;">Ingredienti della ricetta:</h3>
+    <button class="toggle-suggestions" onclick="toggleSuggestions('ricette')">📋 Mostra/Nascondi lista ingredienti</button>
+    <div id="ricette-suggestions" class="base-list" style="display:none;"></div>
+    
+    <div id="recipe-ingredients-list"></div>
+
+    <div class="form-row" style="margin-top:15px;">
+      <input type="text" id="recipe-ing-name" placeholder="Ingrediente" list="ing-list">
+      <input type="number" id="recipe-ing-qty" placeholder="Qtà" min="0" step="0.1" style="max-width:100px;">
+      <select id="recipe-ing-unit">
+        <option value="pz">pz</option>
+        <option value="g">g</option>
+        <option value="kg">kg</option>
+        <option value="ml">ml</option>
+        <option value="l">l</option>
+        <option value="cucchiai">cucchiai</option>
+        <option value="cucchiaini">cucchiaini</option>
+        <option value="confezioni">conf.</option>
+      </select>
+      <button onclick="addRecipeIngredient()">➕</button>
+    </div>
+
+    ${tempRecipeIngredients.length > 0 ? `
+      <div class="select-all-row">
+        <input type="checkbox" id="select-all" onchange="selectAllRecipeIngredients()" ${selectedRecipeIngredients.size === tempRecipeIngredients.length ? 'checked' : ''}>
+        <label for="select-all">Seleziona tutti</label>
+      </div>
+      <button onclick="addSelectedToNeeded()" style="width:100%; background:#2e7d32; margin-bottom:10px;">➕ Aggiungi selezionati al necessario</button>
+    ` : ''}
+
+    <button onclick="saveRecipe()" style="width:100%; background:#4caf50; margin-top:10px;">💾 Salva ricetta</button>
+  `;
+
+  renderRecipeIngredientsList();
+}
+
+function renderRecipeIngredientsList() {
+  const list = document.getElementById('recipe-ingredients-list');
+  if (!list) return;
+  
+  if (tempRecipeIngredients.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:10px;">Nessun ingrediente aggiunto</div>';
+    return;
+  }
+
+  list.innerHTML = tempRecipeIngredients.map((ing, i) => `
+    <div class="recipe-ingredient-item">
+      <input type="checkbox" onchange="toggleRecipeIngredientSelection(${i})" ${selectedRecipeIngredients.has(i) ? 'checked' : ''}>
+      <div class="recipe-ingredient-info">
+        <div class="item-name">${ing.name}</div>
+        <div class="item-qty">${ing.qty} ${ing.unit}</div>
+      </div>
+      <button class="small danger" onclick="removeRecipeIngredient(${i})">✖</button>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// SPESA
+// ============================================================
+function toggleShoppingItem(name) {
+  if (shoppingChecked.has(name)) {
+    shoppingChecked.delete(name);
+  } else {
+    shoppingChecked.add(name);
+  }
+  calculateShopping();
+}
+
+function calculateShopping() {
+  const result = document.getElementById('shopping-result');
+  const neededKeys = Object.keys(needed);
+
+  if (neededKeys.length === 0) {
+    result.innerHTML = '<div class="empty">Lista del necessario vuota. Vai su "Necessario" per aggiungere gli ingredienti che ti servono.</div>';
+    return;
+  }
+
+  const sorted = neededKeys.sort((a, b) => a.localeCompare(b, 'it'));
+  const toBuy = [];
+  const mismatch = [];
+
+  sorted.forEach(name => {
+    const need = needed[name];
+    const have = pantry[name];
+
+    if (have && have.unit !== need.unit) {
+      mismatch.push({ name, need, have });
+    } else {
+      const haveQty = have ? have.qty : 0;
+      const diff = need.qty - haveQty;
+      if (diff > 0) {
+        toBuy.push({ name, need, have, diff, unit: need.unit, checked: shoppingChecked.has(name) });
+      }
+    }
+  });
+
+  const currentNames = new Set(toBuy.map(item => item.name));
+  shoppingChecked.forEach(name => {
+    if (!currentNames.has(name)) {
+      shoppingChecked.delete(name);
+    }
+  });
+
+  const notChecked = toBuy.filter(item => !item.checked);
+  const checked = toBuy.filter(item => item.checked);
+
+  let html = '';
+
+  if (mismatch.length > 0) {
+    html += `<div class="mismatch-error">⚠️ Attenzione: ${mismatch.length} ingrediente/i ha unità di misura diverse tra Dispensa e Necessario. Correggi prima di poter calcolare la spesa per questi ingredienti.</div>`;
+    html += '<h3 style="color:#c0392b; margin:15px 0 10px;">❌ Unità di misura da correggere</h3>';
+    html += mismatch.map(s => `
+      <div class="shopping-item mismatch">
+        <div style="font-weight:600;">${s.name}</div>
+        <div style="font-size:13px;">
+          📦 In dispensa: <strong>${s.have.qty} ${s.have.unit}</strong><br>
+          📋 Nel necessario: <strong>${s.need.qty} ${s.need.unit}</strong>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  if (notChecked.length > 0) {
+    html += notChecked.map(s => `
+      <div class="shopping-item">
+        <div class="shopping-item-content">
+          <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" ${s.checked ? 'checked' : ''}>
+          <div class="item-name">${s.name}</div>
+        </div>
+        <div style="font-weight:700; color:#e65100; font-size:18px;">${s.diff} ${s.unit}</div>
+      </div>
+    `).join('');
+  }
+
+  if (checked.length > 0) {
+    html += checked.map(s => `
+      <div class="shopping-item checked">
+        <div class="shopping-item-content">
+          <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" checked>
+          <div class="item-name">${s.name}</div>
+        </div>
+        <div style="font-weight:700; color:#666; font-size:18px;">${s.diff} ${s.unit}</div>
+      </div>
+    `).join('');
+  }
+
+  if (notChecked.length === 0 && checked.length === 0 && mismatch.length === 0) {
+    html = '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">🎉 Hai già tutto in dispensa!</div>';
+  }
+
+  result.innerHTML = html;
+}
+
+// ============================================================
+// CALCOLATRICE CONVERSIONE UNITÀ
+// ============================================================
+function openConverter() {
+  document.getElementById('converter-modal').classList.add('active');
+  convert();
+}
+
+function closeConverter() {
+  document.getElementById('converter-modal').classList.remove('active');
+}
+
+function swapUnits() {
+  const from = document.getElementById('conv-from');
+  const to = document.getElementById('conv-to');
+  const temp = from.value;
+  from.value = to.value;
+  to.value = temp;
+  convert();
+}
+
+function convert() {
+  const value = parseFloat(document.getElementById('conv-value').value);
+  const from = document.getElementById('conv-from').value;
+  const to = document.getElementById('conv-to').value;
+  const resultEl = document.getElementById('conv-result');
+
+  if (isNaN(value) || value <= 0) {
+    resultEl.textContent = 'Inserisci un valore';
+    resultEl.className = 'conv-result';
+    return;
+  }
+
+  if (from === to) {
+    resultEl.textContent = `${value} ${from} = ${value} ${to}`;
+    resultEl.className = 'conv-result';
+    return;
+  }
+
+  const toBase = {
+    'g': 1,
+    'kg': 1000,
+    'ml': 1,
+    'l': 1000,
+    'cucchiai': 15,
+    'cucchiaini': 5,
+    'pz': 1,
+    'confezioni': 1
+  };
+
+  const weightUnits = ['g', 'kg', 'cucchiai', 'cucchiaini'];
+  const volumeUnits = ['ml', 'l'];
+  const countUnits = ['pz', 'confezioni'];
+
+  const isFromWeight = weightUnits.includes(from);
+  const isFromVolume = volumeUnits.includes(from);
+  const isFromCount = countUnits.includes(from);
+  const isToWeight = weightUnits.includes(to);
+  const isToVolume = volumeUnits.includes(to);
+  const isToCount = countUnits.includes(to);
+
+  if ((isFromWeight && !isToWeight) || (isFromVolume && !isToVolume) || (isFromCount && !isToCount)) {
+    resultEl.textContent = '⚠️ Unità incompatibili!';
+    resultEl.className = 'conv-result error';
+    return;
+  }
+
+  const baseValue = value * toBase[from];
+  const result = baseValue / toBase[to];
+
+  const formatted = result % 1 === 0 ? result.toFixed(0) : result.toFixed(2);
+  resultEl.textContent = `${value} ${from} = ${formatted} ${to}`;
+  resultEl.className = 'conv-result';
+}
+
+// ============================================================
+// DATALIST
+// ============================================================
+function updateDatalists() {
+  const allNames = new Set([...ingredientBase]);
+  const html = [...allNames].sort((a, b) => a.localeCompare(b, 'it')).map(n => `<option value="${n}">`).join('');
+  document.getElementById('ing-list').innerHTML = html;
+}
+
+// ============================================================
+// AVVIO
+// ============================================================
+initFirebase();
+</script>
+
+</body>
+</html>
