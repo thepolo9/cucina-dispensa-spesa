@@ -2,7 +2,11 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#b85c38">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <title>La Mia Cucina</title>
@@ -20,8 +24,9 @@
     padding: 20px;
     max-width: 900px;
     margin: 0 auto;
+    -webkit-text-size-adjust: 100%;
   }
-  h1 { text-align: center; margin-bottom: 5px; color: #b85c38; }
+  h1 { text-align: center; margin-bottom: 5px; color: #b85c38; font-size: 24px; }
   .header-row {
     display: flex;
     justify-content: flex-end;
@@ -49,6 +54,7 @@
     gap: 5px;
     margin-bottom: 20px;
     border-bottom: 2px solid #b85c38;
+    flex-wrap: wrap;
   }
   .tab {
     padding: 12px 20px;
@@ -60,6 +66,8 @@
     font-weight: 600;
     color: #666;
     transition: all 0.2s;
+    flex: 1;
+    min-width: 100px;
   }
   .tab.active { background: #b85c38; color: white; }
   .panel { display: none; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
@@ -110,10 +118,10 @@
     align-items: stretch;
     gap: 8px;
   }
-  .item-info { flex: 1; }
-  .item-name { font-weight: 600; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-weight: 600; word-break: break-word; }
   .item-qty { color: #666; font-size: 13px; }
-  .item-actions { display: flex; gap: 5px; }
+  .item-actions { display: flex; gap: 5px; flex-shrink: 0; }
   .edit-form-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .edit-form-row input, .edit-form-row select { flex: 1; min-width: 70px; }
   .edit-form-actions { display: flex; gap: 6px; }
@@ -148,11 +156,13 @@
     height: 20px;
     cursor: pointer;
     margin-right: 10px;
+    flex-shrink: 0;
   }
   .shopping-item-content {
     display: flex;
     align-items: center;
     flex: 1;
+    min-width: 0;
   }
   .mismatch-error {
     background: #ffebee;
@@ -196,11 +206,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 20px;
   }
-  @media (max-width: 768px) {
-    .recipes-container {
-      grid-template-columns: 1fr;
-    }
-  }
   .recipes-list-panel {
     background: white;
     padding: 15px;
@@ -235,6 +240,7 @@
     font-weight: 600;
     color: #b85c38;
     margin-bottom: 5px;
+    word-break: break-word;
   }
   .recipe-card-count {
     font-size: 12px;
@@ -244,6 +250,7 @@
     display: flex;
     gap: 5px;
     margin-top: 8px;
+    flex-wrap: wrap;
   }
   .recipe-ingredient-item {
     display: flex;
@@ -266,9 +273,11 @@
     height: 18px;
     margin-right: 10px;
     cursor: pointer;
+    flex-shrink: 0;
   }
   .recipe-ingredient-info {
     flex: 1;
+    min-width: 0;
   }
   .select-all-row {
     display: flex;
@@ -303,6 +312,8 @@
     max-width: 400px;
     width: 100%;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    max-height: 90vh;
+    overflow-y: auto;
   }
   .modal h2 {
     color: #2196f3;
@@ -342,6 +353,7 @@
     font-size: 18px;
     font-weight: 700;
     color: #1565c0;
+    word-break: break-word;
   }
   .conv-result.error {
     background: #ffebee;
@@ -358,6 +370,111 @@
     display: block;
   }
   .swap-btn:hover { background: #5a6268; }
+
+  /* RESPONSIVE MOBILE */
+  @media (max-width: 768px) {
+    body {
+      padding: 10px;
+      font-size: 16px;
+    }
+    h1 {
+      font-size: 22px;
+    }
+    .tabs {
+      gap: 3px;
+    }
+    .tab {
+      padding: 10px 8px;
+      font-size: 13px;
+      min-width: 70px;
+    }
+    .panel {
+      padding: 15px;
+      border-radius: 6px;
+    }
+    .form-row {
+      gap: 6px;
+    }
+    input, select, button {
+      padding: 10px;
+      font-size: 16px;
+    }
+    button.small {
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+    .item {
+      padding: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .item-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+    .recipes-container {
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
+    .recipe-card {
+      padding: 12px;
+    }
+    .recipe-ingredient-item {
+      padding: 10px;
+      flex-wrap: wrap;
+    }
+    .recipe-ingredient-item input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+    }
+    .shopping-item {
+      padding: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .shopping-item input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+    }
+    .modal {
+      padding: 20px;
+      margin: 10px;
+    }
+    .modal h2 {
+      font-size: 18px;
+    }
+    .conv-result {
+      font-size: 16px;
+    }
+    .edit-form-row {
+      flex-direction: column;
+    }
+    .edit-form-row input, .edit-form-row select {
+      min-width: 100%;
+    }
+    .edit-form-actions {
+      width: 100%;
+    }
+    .edit-form-actions button {
+      flex: 1;
+    }
+  }
+
+  /* Touch targets ottimizzati per iOS */
+  @media (hover: none) and (pointer: coarse) {
+    button, .tab, .base-item, .recipe-card {
+      min-height: 44px;
+    }
+    .tab {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -1031,8 +1148,6 @@ function addRecipeIngredient() {
 
 function removeRecipeIngredient(index) {
   tempRecipeIngredients.splice(index, 1);
-  selectedRecipeIngredients.delete(index);
-  // Aggiorna gli indici nel Set dopo la rimozione
   const newSet = new Set();
   selectedRecipeIngredients.forEach(i => {
     if (i > index) newSet.add(i - 1);
@@ -1386,7 +1501,6 @@ function convert() {
   const baseValue = value * toBase[from];
   const result = baseValue / toBase[to];
 
-  // Arrotonda a 2 decimali per evitare errori di precisione
   const rounded = Math.round(result * 100) / 100;
   resultEl.textContent = `${formatNumber(value)} ${from} = ${formatNumber(rounded)} ${to}`;
   resultEl.className = 'conv-result';
