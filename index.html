@@ -400,11 +400,11 @@ const db = firebase.firestore();
 // LISTA BASE PREDEFINITA
 // ============================================================
 const DEFAULT_INGREDIENTS = [
-  "Pasta", "Riso", "Farina", "Farina integrale", "Pane",
+  "Pasta", "Riso", "Farina integrale", "Pane",
   "Olio extravergine d'oliva", "Olio di semi", "Burro",
   "Sale", "Pepe", "Zucchero", "Aceto",
   "Pomodoro", "Pomodori pelati", "Passata di pomodoro", "Concentrato di pomodoro",
-  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchina", "Melanzana", "Patata", "Peperone",
+  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchine", "Melanzane", "Patate", "Peperoni",
   "Insalata", "Spinaci", "Broccoli",
   "Basilico", "Prezzemolo", "Rosmarino", "Salvia", "Timo", "Origano",
   "Uova", "Latte", "Panna",
@@ -955,9 +955,9 @@ function convert() {
   // Fattori di conversione (tutto convertito in grammi o millilitri come base)
   const toBase = {
     'g': 1,
-    'kg': 1.000,
+    'kg': 1000,
     'ml': 1,
-    'l': 1.000,
+    'l': 1000,
     'cucchiai': 15,  // 1 cucchiaio = 15g (approssimativo)
     'cucchiaini': 5, // 1 cucchiaino = 5g (approssimativo)
     'pz': 1,
