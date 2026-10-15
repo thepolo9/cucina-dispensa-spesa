@@ -190,6 +190,93 @@
   }
   .toggle-suggestions:hover { background: #5a6268; }
 
+  /* RICETTE - Layout a due colonne */
+  .recipes-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 768px) {
+    .recipes-container {
+      grid-template-columns: 1fr;
+    }
+  }
+  .recipes-list-panel {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .recipe-editor-panel {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .recipe-card {
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .recipe-card:hover {
+    background: #f0f0f0;
+    border-color: #b85c38;
+  }
+  .recipe-card.active {
+    background: #fff3e0;
+    border-color: #b85c38;
+    border-width: 2px;
+  }
+  .recipe-card-title {
+    font-weight: 600;
+    color: #b85c38;
+    margin-bottom: 5px;
+  }
+  .recipe-card-count {
+    font-size: 12px;
+    color: #666;
+  }
+  .recipe-card-actions {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .recipe-ingredient-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: #fafafa;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    border-left: 3px solid #9c27b0;
+  }
+  .recipe-ingredient-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+    cursor: pointer;
+  }
+  .recipe-ingredient-info {
+    flex: 1;
+  }
+  .select-all-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #e8f5e9;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  .select-all-row label {
+    font-weight: 600;
+    color: #2e7d32;
+  }
+
   /* MODAL CALCOLATRICE */
   .modal-overlay {
     display: none;
@@ -277,6 +364,7 @@
 <div class="tabs">
   <button class="tab active" onclick="showTab('dispensa', event)">📦 Dispensa</button>
   <button class="tab" onclick="showTab('necessario', event)">📋 Necessario</button>
+  <button class="tab" onclick="showTab('ricette', event)">📖 Ricette</button>
   <button class="tab" onclick="showTab('spesa', event)">🛒 Spesa</button>
 </div>
 
@@ -329,6 +417,25 @@
   <button class="danger" onclick="clearNeeded()" style="margin-bottom:15px;">🗑️ SVUOTA NECESSARIO</button>
   <h2 class="section-title">Ingredienti necessari</h2>
   <div id="needed-list"></div>
+</div>
+
+<!-- RICETTE -->
+<div id="ricette" class="panel">
+  <div class="recipes-container">
+    <!-- Colonna sinistra: lista ricette -->
+    <div class="recipes-list-panel">
+      <h2 class="section-title">Le mie ricette</h2>
+      <button onclick="newRecipe()" style="width:100%; margin-bottom:15px; background:#9c27b0;">➕ Nuova ricetta</button>
+      <div id="recipes-list"></div>
+    </div>
+
+    <!-- Colonna destra: editor ricetta -->
+    <div class="recipe-editor-panel">
+      <div id="recipe-editor">
+        <div class="empty">Seleziona una ricetta o creane una nuova</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- SPESA -->
@@ -400,11 +507,11 @@ const db = firebase.firestore();
 // LISTA BASE PREDEFINITA
 // ============================================================
 const DEFAULT_INGREDIENTS = [
-  "Pasta", "Riso", "Farina integrale", "Pane",
+  "Pasta", "Riso", "Farina", "Farina integrale", "Pane",
   "Olio extravergine d'oliva", "Olio di semi", "Burro",
   "Sale", "Pepe", "Zucchero", "Aceto",
   "Pomodoro", "Pomodori pelati", "Passata di pomodoro", "Concentrato di pomodoro",
-  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchine", "Melanzane", "Patate", "Peperoni",
+  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchina", "Melanzana", "Patata", "Peperone",
   "Insalata", "Spinaci", "Broccoli",
   "Basilico", "Prezzemolo", "Rosmarino", "Salvia", "Timo", "Origano",
   "Uova", "Latte", "Panna",
@@ -421,9 +528,13 @@ const DEFAULT_INGREDIENTS = [
 // ============================================================
 let pantry = {};
 let needed = {};
+let recipes = [];
 let ingredientBase = [];
 let firebaseReady = false;
 let shoppingChecked = new Set();
+let currentRecipeId = null;
+let tempRecipeIngredients = [];
+let selectedRecipeIngredients = new Set();
 
 const statusEl = document.getElementById('sync-status');
 
@@ -444,15 +555,18 @@ async function initFirebase() {
       await docRef.set({
         pantry: {},
         needed: {},
+        recipes: [],
         ingredientBase: DEFAULT_INGREDIENTS
       });
       pantry = {};
       needed = {};
+      recipes = [];
       ingredientBase = [...DEFAULT_INGREDIENTS];
     } else {
       const data = docSnap.data();
       pantry = data.pantry || {};
       needed = data.needed || {};
+      recipes = data.recipes || [];
       ingredientBase = data.ingredientBase || [...DEFAULT_INGREDIENTS];
     }
 
@@ -461,6 +575,7 @@ async function initFirebase() {
         const data = doc.data();
         pantry = data.pantry || {};
         needed = data.needed || {};
+        recipes = data.recipes || [];
         ingredientBase = data.ingredientBase || [];
         renderAll();
         setSyncStatus('✅ Sincronizzato', 'ok');
@@ -487,6 +602,7 @@ async function save() {
     await db.collection('appData').doc('main').set({
       pantry,
       needed,
+      recipes,
       ingredientBase
     });
     setSyncStatus('✅ Sincronizzato', 'ok');
@@ -526,6 +642,7 @@ function addToIngredientBase(name) {
     updateDatalists();
     renderBaseList('dispensa');
     renderBaseList('necessario');
+    renderBaseList('ricette');
   }
   return capitalizedName;
 }
@@ -555,6 +672,7 @@ function toggleSuggestions(section) {
 
 function renderBaseList(section) {
   const suggDiv = document.getElementById(`${section}-suggestions`);
+  if (!suggDiv) return;
   if (ingredientBase.length === 0) {
     suggDiv.innerHTML = '<div class="empty" style="padding:10px;">Nessun ingrediente nella lista base</div>';
     return;
@@ -567,11 +685,13 @@ function renderBaseList(section) {
 function selectFromBase(section, name) {
   if (section === 'dispensa') document.getElementById('ing-name').value = name;
   else if (section === 'necessario') document.getElementById('nec-name').value = name;
+  else if (section === 'ricette') document.getElementById('recipe-ing-name').value = name;
 }
 
 function renderAll() {
   renderPantry();
   renderNeeded();
+  renderRecipes();
   updateDatalists();
   if (document.getElementById('spesa').classList.contains('active')) {
     calculateShopping();
@@ -817,195 +937,132 @@ function renderNeeded() {
 }
 
 // ============================================================
-// SPESA
+// RICETTE
 // ============================================================
-function toggleShoppingItem(name) {
-  if (shoppingChecked.has(name)) {
-    shoppingChecked.delete(name);
+function newRecipe() {
+  currentRecipeId = Date.now().toString();
+  tempRecipeIngredients = [];
+  selectedRecipeIngredients.clear();
+  renderRecipeEditor();
+  renderRecipesList();
+}
+
+function selectRecipe(id) {
+  currentRecipeId = id;
+  const recipe = recipes.find(r => r.id === id);
+  if (recipe) {
+    tempRecipeIngredients = [...recipe.ingredients];
+  }
+  selectedRecipeIngredients.clear();
+  renderRecipeEditor();
+  renderRecipesList();
+}
+
+function saveRecipe() {
+  const name = document.getElementById('recipe-name').value.trim();
+  if (!name) { alert('Inserisci il nome della ricetta!'); return; }
+  if (tempRecipeIngredients.length === 0) { alert('Aggiungi almeno un ingrediente!'); return; }
+
+  const existingIndex = recipes.findIndex(r => r.id === currentRecipeId);
+  if (existingIndex >= 0) {
+    recipes[existingIndex] = { id: currentRecipeId, name, ingredients: [...tempRecipeIngredients] };
   } else {
-    shoppingChecked.add(name);
+    recipes.push({ id: currentRecipeId, name, ingredients: [...tempRecipeIngredients] });
   }
-  calculateShopping();
+
+  save();
+  renderRecipesList();
+  alert('✅ Ricetta salvata!');
 }
 
-function calculateShopping() {
-  const result = document.getElementById('shopping-result');
-  const neededKeys = Object.keys(needed);
+function deleteRecipe(id) {
+  if (!confirm('Eliminare questa ricetta?')) return;
+  recipes = recipes.filter(r => r.id !== id);
+  if (currentRecipeId === id) {
+    currentRecipeId = null;
+    tempRecipeIngredients = [];
+    selectedRecipeIngredients.clear();
+  }
+  save();
+  renderRecipesList();
+  renderRecipeEditor();
+}
 
-  if (neededKeys.length === 0) {
-    result.innerHTML = '<div class="empty">Lista del necessario vuota. Vai su "Necessario" per aggiungere gli ingredienti che ti servono.</div>';
+function duplicateRecipe(id) {
+  const recipe = recipes.find(r => r.id === id);
+  if (!recipe) return;
+  const newId = Date.now().toString();
+  recipes.push({ id: newId, name: recipe.name + ' (copia)', ingredients: [...recipe.ingredients] });
+  save();
+  renderRecipesList();
+}
+
+function addRecipeIngredient() {
+  let name = document.getElementById('recipe-ing-name').value.trim();
+  const qty = parseFloat(document.getElementById('recipe-ing-qty').value);
+  const unit = document.getElementById('recipe-ing-unit').value;
+  if (!name || isNaN(qty) || qty <= 0) { alert('Compila nome e quantità!'); return; }
+
+  name = addToIngredientBase(name);
+  tempRecipeIngredients.push({ name, qty, unit });
+  
+  document.getElementById('recipe-ing-name').value = '';
+  document.getElementById('recipe-ing-qty').value = '';
+  renderRecipeEditor();
+}
+
+function removeRecipeIngredient(index) {
+  tempRecipeIngredients.splice(index, 1);
+  selectedRecipeIngredients.delete(index);
+  renderRecipeEditor();
+}
+
+function toggleRecipeIngredientSelection(index) {
+  if (selectedRecipeIngredients.has(index)) {
+    selectedRecipeIngredients.delete(index);
+  } else {
+    selectedRecipeIngredients.add(index);
+  }
+  renderRecipeEditor();
+}
+
+function selectAllRecipeIngredients() {
+  if (selectedRecipeIngredients.size === tempRecipeIngredients.length) {
+    selectedRecipeIngredients.clear();
+  } else {
+    tempRecipeIngredients.forEach((_, i) => selectedRecipeIngredients.add(i));
+  }
+  renderRecipeEditor();
+}
+
+function addSelectedToNeeded() {
+  if (selectedRecipeIngredients.size === 0) {
+    alert('Seleziona almeno un ingrediente!');
     return;
   }
 
-  const sorted = neededKeys.sort((a, b) => a.localeCompare(b, 'it'));
-  const toBuy = [];
-  const mismatch = [];
-
-  sorted.forEach(name => {
-    const need = needed[name];
-    const have = pantry[name];
-
-    if (have && have.unit !== need.unit) {
-      mismatch.push({ name, need, have });
+  selectedRecipeIngredients.forEach(index => {
+    const ing = tempRecipeIngredients[index];
+    if (!needed[ing.name]) {
+      needed[ing.name] = { qty: ing.qty, unit: ing.unit };
     } else {
-      const haveQty = have ? have.qty : 0;
-      const diff = need.qty - haveQty;
-      if (diff > 0) {
-        toBuy.push({ name, need, have, diff, unit: need.unit, checked: shoppingChecked.has(name) });
-      }
+      needed[ing.name].qty += ing.qty;
     }
   });
 
-  const currentNames = new Set(toBuy.map(item => item.name));
-  shoppingChecked.forEach(name => {
-    if (!currentNames.has(name)) {
-      shoppingChecked.delete(name);
-    }
-  });
-
-  const notChecked = toBuy.filter(item => !item.checked);
-  const checked = toBuy.filter(item => item.checked);
-
-  let html = '';
-
-  if (mismatch.length > 0) {
-    html += `<div class="mismatch-error">⚠️ Attenzione: ${mismatch.length} ingrediente/i ha unità di misura diverse tra Dispensa e Necessario. Correggi prima di poter calcolare la spesa per questi ingredienti.</div>`;
-    html += '<h3 style="color:#c0392b; margin:15px 0 10px;">❌ Unità di misura da correggere</h3>';
-    html += mismatch.map(s => `
-      <div class="shopping-item mismatch">
-        <div style="font-weight:600;">${s.name}</div>
-        <div style="font-size:13px;">
-          📦 In dispensa: <strong>${s.have.qty} ${s.have.unit}</strong><br>
-          📋 Nel necessario: <strong>${s.need.qty} ${s.need.unit}</strong>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  if (notChecked.length > 0) {
-    html += notChecked.map(s => `
-      <div class="shopping-item">
-        <div class="shopping-item-content">
-          <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" ${s.checked ? 'checked' : ''}>
-          <div class="item-name">${s.name}</div>
-        </div>
-        <div style="font-weight:700; color:#e65100; font-size:18px;">${s.diff} ${s.unit}</div>
-      </div>
-    `).join('');
-  }
-
-  if (checked.length > 0) {
-    html += checked.map(s => `
-      <div class="shopping-item checked">
-        <div class="shopping-item-content">
-          <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" checked>
-          <div class="item-name">${s.name}</div>
-        </div>
-        <div style="font-weight:700; color:#666; font-size:18px;">${s.diff} ${s.unit}</div>
-      </div>
-    `).join('');
-  }
-
-  if (notChecked.length === 0 && checked.length === 0 && mismatch.length === 0) {
-    html = '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">🎉 Hai già tutto in dispensa!</div>';
-  }
-
-  result.innerHTML = html;
+  save();
+  selectedRecipeIngredients.clear();
+  renderRecipeEditor();
+  alert(`✅ ${selectedRecipeIngredients.size} ingrediente/i aggiunto/i al necessario!`);
 }
 
-// ============================================================
-// CALCOLATRICE CONVERSIONE UNITÀ
-// ============================================================
-function openConverter() {
-  document.getElementById('converter-modal').classList.add('active');
-  convert();
-}
-
-function closeConverter() {
-  document.getElementById('converter-modal').classList.remove('active');
-}
-
-function swapUnits() {
-  const from = document.getElementById('conv-from');
-  const to = document.getElementById('conv-to');
-  const temp = from.value;
-  from.value = to.value;
-  to.value = temp;
-  convert();
-}
-
-function convert() {
-  const value = parseFloat(document.getElementById('conv-value').value);
-  const from = document.getElementById('conv-from').value;
-  const to = document.getElementById('conv-to').value;
-  const resultEl = document.getElementById('conv-result');
-
-  if (isNaN(value) || value <= 0) {
-    resultEl.textContent = 'Inserisci un valore';
-    resultEl.className = 'conv-result';
+function renderRecipesList() {
+  const list = document.getElementById('recipes-list');
+  if (recipes.length === 0) {
+    list.innerHTML = '<div class="empty">Nessuna ricetta salvata</div>';
     return;
   }
-
-  if (from === to) {
-    resultEl.textContent = `${value} ${from} = ${value} ${to}`;
-    resultEl.className = 'conv-result';
-    return;
-  }
-
-  // Fattori di conversione (tutto convertito in grammi o millilitri come base)
-  const toBase = {
-    'g': 1,
-    'kg': 1000,
-    'ml': 1,
-    'l': 1000,
-    'cucchiai': 15,  // 1 cucchiaio = 15g (approssimativo)
-    'cucchiaini': 5, // 1 cucchiaino = 5g (approssimativo)
-    'pz': 1,
-    'confezioni': 1
-  };
-
-  // Controlla se le unità sono compatibili
-  const weightUnits = ['g', 'kg', 'cucchiai', 'cucchiaini'];
-  const volumeUnits = ['ml', 'l'];
-  const countUnits = ['pz', 'confezioni'];
-
-  const isFromWeight = weightUnits.includes(from);
-  const isFromVolume = volumeUnits.includes(from);
-  const isFromCount = countUnits.includes(from);
-  const isToWeight = weightUnits.includes(to);
-  const isToVolume = volumeUnits.includes(to);
-  const isToCount = countUnits.includes(to);
-
-  if ((isFromWeight && !isToWeight) || (isFromVolume && !isToVolume) || (isFromCount && !isToCount)) {
-    resultEl.textContent = '⚠️ Unità incompatibili!';
-    resultEl.className = 'conv-result error';
-    return;
-  }
-
-  // Conversione
-  const baseValue = value * toBase[from];
-  const result = baseValue / toBase[to];
-
-  // Formatta il risultato
-  const formatted = result % 1 === 0 ? result.toFixed(0) : result.toFixed(2);
-  resultEl.textContent = `${value} ${from} = ${formatted} ${to}`;
-  resultEl.className = 'conv-result';
-}
-
-// ============================================================
-// DATALIST
-// ============================================================
-function updateDatalists() {
-  const allNames = new Set([...ingredientBase]);
-  const html = [...allNames].sort((a, b) => a.localeCompare(b, 'it')).map(n => `<option value="${n}">`).join('');
-  document.getElementById('ing-list').innerHTML = html;
-}
-
-// ============================================================
-// AVVIO
-// ============================================================
-initFirebase();
-</script>
-
-</body>
-</html>
+  list.innerHTML = recipes.map(r => `
+    <div class="recipe-card ${r.id === currentRecipeId ? 'active' : ''}" onclick="selectRecipe('${r.id}')">
+      <div class="recipe-card-title">${r.name}</div>
+      <div class="recipe-card-count">${r.ingredients.length} ingredient
