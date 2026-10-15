@@ -114,12 +114,32 @@
     margin-bottom: 8px;
     border-left: 4px solid #ff9800;
   }
+  .shopping-item.checked {
+    background: #e8f5e9;
+    border-left-color: #4caf50;
+    opacity: 0.7;
+  }
+  .shopping-item.checked .item-name {
+    text-decoration: line-through;
+    color: #666;
+  }
   .shopping-item.mismatch {
     background: #ffebee;
     border-left-color: #c0392b;
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+  .shopping-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    margin-right: 10px;
+  }
+  .shopping-item-content {
+    display: flex;
+    align-items: center;
+    flex: 1;
   }
   .mismatch-error {
     background: #ffebee;
@@ -222,16 +242,12 @@
 
 <!-- SPESA -->
 <div id="spesa" class="panel">
-  <h2 class="section-title">🛒 Cosa comprare</h2>
-  <button onclick="calculateShopping()" style="margin-bottom:15px;">🧮 Calcola spesa</button>
   <div id="shopping-result"></div>
 </div>
 
 <script>
 // ============================================================
 // 🔥 CONFIGURAZIONE FIREBASE
-// Sostituisci questo oggetto con le credenziali del tuo progetto
-// (le trovi in Firebase Console → Impostazioni progetto → Le tue app)
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyAmttJRN9YiQkZd0evhYLwfu3fu5J821qE",
@@ -242,7 +258,6 @@ const firebaseConfig = {
   appId: "1:904852261111:web:b1916de0354257023cabf2"
 };
 
-// Inizializza Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
@@ -267,12 +282,13 @@ const DEFAULT_INGREDIENTS = [
 ];
 
 // ============================================================
-// STATO (ora sincronizzato con Firestore)
+// STATO
 // ============================================================
 let pantry = {};
 let needed = {};
 let ingredientBase = [];
 let firebaseReady = false;
+let shoppingChecked = new Set(); // Track checked items
 
 const statusEl = document.getElementById('sync-status');
 
@@ -282,7 +298,7 @@ function setSyncStatus(text, cls) {
 }
 
 // ============================================================
-// FIRESTORE: caricamento iniziale + listener real-time
+// FIRESTORE
 // ============================================================
 async function initFirebase() {
   try {
@@ -290,7 +306,6 @@ async function initFirebase() {
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
-      // Primo avvio: creo il documento con la lista base
       await docRef.set({
         pantry: {},
         needed: {},
@@ -306,7 +321,6 @@ async function initFirebase() {
       ingredientBase = data.ingredientBase || [...DEFAULT_INGREDIENTS];
     }
 
-    // Listener real-time: se i dati cambiano (da altro dispositivo) si aggiornano qui
     docRef.onSnapshot((doc) => {
       if (doc.exists) {
         const data = doc.data();
@@ -331,7 +345,6 @@ async function initFirebase() {
   }
 }
 
-// Salva tutto su Firestore
 async function save() {
   if (!firebaseReady) return;
   try {
@@ -425,6 +438,9 @@ function renderAll() {
   renderPantry();
   renderNeeded();
   updateDatalists();
+  if (document.getElementById('spesa').classList.contains('active')) {
+    calculateShopping();
+  }
 }
 
 // ============================================================
@@ -668,6 +684,15 @@ function renderNeeded() {
 // ============================================================
 // SPESA
 // ============================================================
+function toggleShoppingItem(name) {
+  if (shoppingChecked.has(name)) {
+    shoppingChecked.delete(name);
+  } else {
+    shoppingChecked.add(name);
+  }
+  calculateShopping();
+}
+
 function calculateShopping() {
   const result = document.getElementById('shopping-result');
   const neededKeys = Object.keys(needed);
@@ -678,7 +703,7 @@ function calculateShopping() {
   }
 
   const sorted = neededKeys.sort((a, b) => a.localeCompare(b, 'it'));
-  const ok = [];
+  const toBuy = [];
   const mismatch = [];
 
   sorted.forEach(name => {
@@ -690,9 +715,23 @@ function calculateShopping() {
     } else {
       const haveQty = have ? have.qty : 0;
       const diff = need.qty - haveQty;
-      ok.push({ name, need, have, diff, unit: need.unit });
+      if (diff > 0) {
+        toBuy.push({ name, need, have, diff, unit: need.unit, checked: shoppingChecked.has(name) });
+      }
     }
   });
+
+  // Rimuovi dal Set gli articoli che non sono più nella lista
+  const currentNames = new Set(toBuy.map(item => item.name));
+  shoppingChecked.forEach(name => {
+    if (!currentNames.has(name)) {
+      shoppingChecked.delete(name);
+    }
+  });
+
+  // Separa in non comprati e comprati
+  const notChecked = toBuy.filter(item => !item.checked);
+  const checked = toBuy.filter(item => item.checked);
 
   let html = '';
 
@@ -710,19 +749,31 @@ function calculateShopping() {
     `).join('');
   }
 
-  const toBuy = ok.filter(s => s.diff > 0);
-
-  if (toBuy.length > 0) {
-    html += '<h3 style="color:#b85c38; margin:15px 0 10px;">🛒 DA COMPRARE</h3>';
-    html += toBuy.map(s => `
+  if (notChecked.length > 0) {
+    html += notChecked.map(s => `
       <div class="shopping-item">
-        <div class="item-name">${s.name}</div>
+        <div class="shopping-item-content">
+          <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" ${s.checked ? 'checked' : ''}>
+          <div class="item-name">${s.name}</div>
+        </div>
         <div style="font-weight:700; color:#e65100; font-size:18px;">${s.diff} ${s.unit}</div>
       </div>
     `).join('');
   }
 
-  if (toBuy.length === 0 && mismatch.length === 0) {
+  if (checked.length > 0) {
+    html += checked.map(s => `
+      <div class="shopping-item checked">
+        <div class="shopping-item-content">
+          <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" checked>
+          <div class="item-name">${s.name}</div>
+        </div>
+        <div style="font-weight:700; color:#666; font-size:18px;">${s.diff} ${s.unit}</div>
+      </div>
+    `).join('');
+  }
+
+  if (notChecked.length === 0 && checked.length === 0 && mismatch.length === 0) {
     html = '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">🎉 Hai già tutto in dispensa!</div>';
   }
 
@@ -730,7 +781,7 @@ function calculateShopping() {
 }
 
 // ============================================================
-// DATALIST (autocomplete)
+// DATALIST
 // ============================================================
 function updateDatalists() {
   const allNames = new Set([...ingredientBase]);
