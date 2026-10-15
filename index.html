@@ -254,6 +254,13 @@
     margin-bottom: 6px;
     border-left: 3px solid #9c27b0;
   }
+  .recipe-ingredient-item.editing {
+    background: #fff9e6;
+    border-left-color: #ffc107;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
   .recipe-ingredient-item input[type="checkbox"] {
     width: 18px;
     height: 18px;
@@ -422,14 +429,12 @@
 <!-- RICETTE -->
 <div id="ricette" class="panel">
   <div class="recipes-container">
-    <!-- Colonna sinistra: lista ricette -->
     <div class="recipes-list-panel">
       <h2 class="section-title">Le mie ricette</h2>
       <button onclick="newRecipe()" style="width:100%; margin-bottom:15px; background:#9c27b0;">➕ Nuova ricetta</button>
       <div id="recipes-list"></div>
     </div>
 
-    <!-- Colonna destra: editor ricetta -->
     <div class="recipe-editor-panel">
       <div id="recipe-editor">
         <div class="empty">Seleziona una ricetta o creane una nuova</div>
@@ -507,11 +512,11 @@ const db = firebase.firestore();
 // LISTA BASE PREDEFINITA
 // ============================================================
 const DEFAULT_INGREDIENTS = [
-  "Pasta", "Riso", "Farina integrale", "Pane",
+  "Pasta", "Riso", "Farina", "Farina integrale", "Pane",
   "Olio extravergine d'oliva", "Olio di semi", "Burro",
   "Sale", "Pepe", "Zucchero", "Aceto",
   "Pomodoro", "Pomodori pelati", "Passata di pomodoro", "Concentrato di pomodoro",
-  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchine", "Melanzane", "Patate", "Peperoni",
+  "Cipolla", "Aglio", "Carota", "Sedano", "Zucchina", "Melanzana", "Patata", "Peperone",
   "Insalata", "Spinaci", "Broccoli",
   "Basilico", "Prezzemolo", "Rosmarino", "Salvia", "Timo", "Origano",
   "Uova", "Latte", "Panna",
@@ -535,6 +540,7 @@ let shoppingChecked = new Set();
 let currentRecipeId = null;
 let tempRecipeIngredients = [];
 let selectedRecipeIngredients = new Set();
+let editingRecipeIngredientIndex = null;
 
 const statusEl = document.getElementById('sync-status');
 
@@ -632,6 +638,10 @@ function capitalizeFirst(str) {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
+function formatNumber(num) {
+  return num.toLocaleString('it-IT');
+}
+
 function addToIngredientBase(name) {
   const capitalizedName = capitalizeFirst(name);
   if (!capitalizedName) return '';
@@ -686,7 +696,10 @@ function renderBaseList(section) {
 function selectFromBase(section, name) {
   if (section === 'dispensa') document.getElementById('ing-name').value = name;
   else if (section === 'necessario') document.getElementById('nec-name').value = name;
-  else if (section === 'ricette') document.getElementById('recipe-ing-name').value = name;
+  else if (section === 'ricette') {
+    const input = document.getElementById('recipe-ing-name');
+    if (input) input.value = name;
+  }
 }
 
 function renderAll() {
@@ -944,6 +957,7 @@ function newRecipe() {
   currentRecipeId = Date.now().toString();
   tempRecipeIngredients = [];
   selectedRecipeIngredients.clear();
+  editingRecipeIngredientIndex = null;
   renderRecipeEditor();
   renderRecipesList();
 }
@@ -955,6 +969,7 @@ function selectRecipe(id) {
     tempRecipeIngredients = [...recipe.ingredients];
   }
   selectedRecipeIngredients.clear();
+  editingRecipeIngredientIndex = null;
   renderRecipeEditor();
   renderRecipesList();
 }
@@ -962,7 +977,6 @@ function selectRecipe(id) {
 function saveRecipe() {
   const name = document.getElementById('recipe-name').value.trim();
   if (!name) { alert('Inserisci il nome della ricetta!'); return; }
-  if (tempRecipeIngredients.length === 0) { alert('Aggiungi almeno un ingrediente!'); return; }
 
   const existingIndex = recipes.findIndex(r => r.id === currentRecipeId);
   if (existingIndex >= 0) {
@@ -983,6 +997,7 @@ function deleteRecipe(id) {
     currentRecipeId = null;
     tempRecipeIngredients = [];
     selectedRecipeIngredients.clear();
+    editingRecipeIngredientIndex = null;
   }
   save();
   renderRecipesList();
@@ -1007,14 +1022,24 @@ function addRecipeIngredient() {
   name = addToIngredientBase(name);
   tempRecipeIngredients.push({ name, qty, unit });
   
-  document.getElementById('recipe-ing-name').value = '';
-  document.getElementById('recipe-ing-qty').value = '';
+  const nameInput = document.getElementById('recipe-ing-name');
+  const qtyInput = document.getElementById('recipe-ing-qty');
+  if (nameInput) nameInput.value = '';
+  if (qtyInput) qtyInput.value = '';
   renderRecipeEditor();
 }
 
 function removeRecipeIngredient(index) {
   tempRecipeIngredients.splice(index, 1);
   selectedRecipeIngredients.delete(index);
+  // Aggiorna gli indici nel Set dopo la rimozione
+  const newSet = new Set();
+  selectedRecipeIngredients.forEach(i => {
+    if (i > index) newSet.add(i - 1);
+    else if (i < index) newSet.add(i);
+  });
+  selectedRecipeIngredients = newSet;
+  editingRecipeIngredientIndex = null;
   renderRecipeEditor();
 }
 
@@ -1057,6 +1082,29 @@ function addSelectedToNeeded() {
   selectedRecipeIngredients.clear();
   renderRecipeEditor();
   alert(`✅ ${count} ingrediente/i aggiunto/i al necessario!`);
+}
+
+function startEditRecipeIngredient(index) {
+  editingRecipeIngredientIndex = index;
+  renderRecipeEditor();
+}
+
+function saveEditRecipeIngredient(index) {
+  let newName = document.getElementById(`edit-recipe-ing-name-${index}`).value.trim();
+  const newQty = parseFloat(document.getElementById(`edit-recipe-ing-qty-${index}`).value);
+  const newUnit = document.getElementById(`edit-recipe-ing-unit-${index}`).value;
+
+  if (!newName || isNaN(newQty) || newQty <= 0) { alert('Compila nome e quantità!'); return; }
+
+  newName = addToIngredientBase(newName);
+  tempRecipeIngredients[index] = { name: newName, qty: newQty, unit: newUnit };
+  editingRecipeIngredientIndex = null;
+  renderRecipeEditor();
+}
+
+function cancelEditRecipeIngredient() {
+  editingRecipeIngredientIndex = null;
+  renderRecipeEditor();
 }
 
 function renderRecipesList() {
@@ -1138,16 +1186,37 @@ function renderRecipeIngredientsList() {
     return;
   }
 
-  list.innerHTML = tempRecipeIngredients.map((ing, i) => `
-    <div class="recipe-ingredient-item">
-      <input type="checkbox" onchange="toggleRecipeIngredientSelection(${i})" ${selectedRecipeIngredients.has(i) ? 'checked' : ''}>
-      <div class="recipe-ingredient-info">
-        <div class="item-name">${ing.name}</div>
-        <div class="item-qty">${ing.qty} ${ing.unit}</div>
+  list.innerHTML = tempRecipeIngredients.map((ing, i) => {
+    if (editingRecipeIngredientIndex === i) {
+      return `
+        <div class="recipe-ingredient-item editing">
+          <div style="font-weight:600; color:#9c27b0;">✏️ Modifica ingrediente</div>
+          <div class="edit-form-row">
+            <input type="text" id="edit-recipe-ing-name-${i}" value="${ing.name.replace(/"/g,'&quot;')}" list="ing-list">
+            <input type="number" id="edit-recipe-ing-qty-${i}" value="${ing.qty}" min="0" step="0.1">
+            <select id="edit-recipe-ing-unit-${i}">
+              ${['pz','g','kg','ml','l','cucchiai','cucchiaini','confezioni'].map(u => `<option value="${u}" ${u===ing.unit?'selected':''}>${u}</option>`).join('')}
+            </select>
+          </div>
+          <div class="edit-form-actions">
+            <button class="save" onclick="saveEditRecipeIngredient(${i})">✓ Salva</button>
+            <button class="small" onclick="cancelEditRecipeIngredient()">✖ Annulla</button>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="recipe-ingredient-item">
+        <input type="checkbox" onchange="toggleRecipeIngredientSelection(${i})" ${selectedRecipeIngredients.has(i) ? 'checked' : ''}>
+        <div class="recipe-ingredient-info">
+          <div class="item-name">${ing.name}</div>
+          <div class="item-qty">${ing.qty} ${ing.unit}</div>
+        </div>
+        <button class="small edit" onclick="startEditRecipeIngredient(${i})">✏️</button>
+        <button class="small danger" onclick="removeRecipeIngredient(${i})">✖</button>
       </div>
-      <button class="small danger" onclick="removeRecipeIngredient(${i})">✖</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // ============================================================
@@ -1281,7 +1350,7 @@ function convert() {
   }
 
   if (from === to) {
-    resultEl.textContent = `${value} ${from} = ${value} ${to}`;
+    resultEl.textContent = `${formatNumber(value)} ${from} = ${formatNumber(value)} ${to}`;
     resultEl.className = 'conv-result';
     return;
   }
@@ -1317,8 +1386,9 @@ function convert() {
   const baseValue = value * toBase[from];
   const result = baseValue / toBase[to];
 
-  const formatted = result % 1 === 0 ? result.toFixed(0) : result.toFixed(2);
-  resultEl.textContent = `${value} ${from} = ${formatted} ${to}`;
+  // Arrotonda a 2 decimali per evitare errori di precisione
+  const rounded = Math.round(result * 100) / 100;
+  resultEl.textContent = `${formatNumber(value)} ${from} = ${formatNumber(rounded)} ${to}`;
   resultEl.className = 'conv-result';
 }
 
