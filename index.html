@@ -1466,8 +1466,12 @@ function calculateShopping() {
     `).join('');
   }
 
-  if (notChecked.length === 0 && checked.length === 0 && mismatch.length === 0) {
+    if (notChecked.length === 0 && checked.length === 0 && mismatch.length === 0) {
     html = '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">🎉 Hai già tutto in dispensa!</div>';
+    exportContainer.innerHTML = '';
+  } else if (toBuy.length === 0 && checked.length > 0) {
+    // Tutti gli articoli sono stati spuntati
+    html += '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">✅ Hai già comprato tutto!</div>';
     exportContainer.innerHTML = '';
   } else {
     // Mostra pulsanti esportazione solo se ci sono articoli da comprare
@@ -1477,13 +1481,13 @@ function calculateShopping() {
           <button class="export-btn-copy" onclick="copyShoppingList()">📋 Copia lista</button>
           <button class="export-btn-share" onclick="shareShoppingList()">📱 Condividi</button>
           <button class="export-btn-open" onclick="openCheckableList()">📄 Apri lista spuntabile</button>
+          <button class="export-btn-download" onclick="downloadCheckableList()">💾 Scarica lista spuntabile</button>
         </div>
       `;
     } else {
       exportContainer.innerHTML = '';
     }
   }
-
   result.innerHTML = html;
 }
 
@@ -1495,6 +1499,9 @@ function getShoppingListData() {
   const items = [];
   
   neededKeys.forEach(name => {
+    // Salta gli ingredienti già spuntati
+    if (shoppingChecked.has(name)) return;
+    
     const need = needed[name];
     const have = pantry[name];
     
