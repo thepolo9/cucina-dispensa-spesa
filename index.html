@@ -199,6 +199,22 @@
     margin-bottom: 10px;
   }
   .toggle-suggestions:hover { background: #5a6268; }
+  .export-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+  }
+  .export-buttons button {
+    flex: 1;
+    min-width: 120px;
+  }
+  .export-btn-copy { background: #607d8b; }
+  .export-btn-copy:hover { background: #455a64; }
+  .export-btn-share { background: #25d366; }
+  .export-btn-share:hover { background: #1da851; }
+  .export-btn-open { background: #9c27b0; }
+  .export-btn-open:hover { background: #7b1fa2; }
 
   /* RICETTE */
   .recipes-container {
@@ -458,9 +474,14 @@
     .edit-form-actions button {
       flex: 1;
     }
+    .export-buttons {
+      flex-direction: column;
+    }
+    .export-buttons button {
+      min-width: 100%;
+    }
   }
 
-  /* Touch targets ottimizzati per iOS */
   @media (hover: none) and (pointer: coarse) {
     button, .tab, .base-item, .recipe-card {
       min-height: 44px;
@@ -563,6 +584,7 @@
 <!-- SPESA -->
 <div id="spesa" class="panel">
   <div id="shopping-result"></div>
+  <div id="export-buttons-container"></div>
 </div>
 
 <!-- MODAL CALCOLATRICE -->
@@ -658,6 +680,7 @@ let currentRecipeId = null;
 let tempRecipeIngredients = [];
 let selectedRecipeIngredients = new Set();
 let editingRecipeIngredientIndex = null;
+let tempRecipeName = ''; // Nome temporaneo della ricetta non ancora salvata
 
 const statusEl = document.getElementById('sync-status');
 
@@ -756,7 +779,14 @@ function capitalizeFirst(str) {
 }
 
 function formatNumber(num) {
-  return num.toLocaleString('it-IT');
+  // Arrotonda a 2 decimali
+  const rounded = Math.round(num * 100) / 100;
+  // Separa parte intera e decimale
+  const parts = rounded.toString().split('.');
+  // Aggiungi punti alle migliaia
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  // Unisci con virgola decimale (formato italiano)
+  return parts.length > 1 ? parts[0] + ',' + parts[1] : parts[0];
 }
 
 function addToIngredientBase(name) {
@@ -1075,6 +1105,7 @@ function newRecipe() {
   tempRecipeIngredients = [];
   selectedRecipeIngredients.clear();
   editingRecipeIngredientIndex = null;
+  tempRecipeName = '';
   renderRecipeEditor();
   renderRecipesList();
 }
@@ -1084,6 +1115,7 @@ function selectRecipe(id) {
   const recipe = recipes.find(r => r.id === id);
   if (recipe) {
     tempRecipeIngredients = [...recipe.ingredients];
+    tempRecipeName = recipe.name;
   }
   selectedRecipeIngredients.clear();
   editingRecipeIngredientIndex = null;
@@ -1092,8 +1124,11 @@ function selectRecipe(id) {
 }
 
 function saveRecipe() {
-  const name = document.getElementById('recipe-name').value.trim();
+  const nameInput = document.getElementById('recipe-name');
+  const name = nameInput ? nameInput.value.trim() : tempRecipeName;
   if (!name) { alert('Inserisci il nome della ricetta!'); return; }
+
+  tempRecipeName = name;
 
   const existingIndex = recipes.findIndex(r => r.id === currentRecipeId);
   if (existingIndex >= 0) {
@@ -1115,6 +1150,7 @@ function deleteRecipe(id) {
     tempRecipeIngredients = [];
     selectedRecipeIngredients.clear();
     editingRecipeIngredientIndex = null;
+    tempRecipeName = '';
   }
   save();
   renderRecipesList();
@@ -1222,6 +1258,10 @@ function cancelEditRecipeIngredient() {
   renderRecipeEditor();
 }
 
+function updateTempRecipeName(value) {
+  tempRecipeName = value;
+}
+
 function renderRecipesList() {
   const list = document.getElementById('recipes-list');
   if (recipes.length === 0) {
@@ -1248,12 +1288,12 @@ function renderRecipeEditor() {
   }
 
   const recipe = recipes.find(r => r.id === currentRecipeId);
-  const recipeName = recipe ? recipe.name : '';
+  const recipeName = recipe ? recipe.name : tempRecipeName;
 
   editor.innerHTML = `
     <h2 class="section-title">Modifica ricetta</h2>
     <div class="form-row">
-      <input type="text" id="recipe-name" value="${recipeName.replace(/"/g,'&quot;')}" placeholder="Nome ricetta">
+      <input type="text" id="recipe-name" value="${recipeName.replace(/"/g,'&quot;')}" placeholder="Nome ricetta" oninput="updateTempRecipeName(this.value)">
     </div>
 
     <h3 style="margin:15px 0 10px; font-size:14px; color:#666;">Ingredienti della ricetta:</h3>
@@ -1348,10 +1388,12 @@ function toggleShoppingItem(name) {
 
 function calculateShopping() {
   const result = document.getElementById('shopping-result');
+  const exportContainer = document.getElementById('export-buttons-container');
   const neededKeys = Object.keys(needed);
 
   if (neededKeys.length === 0) {
     result.innerHTML = '<div class="empty">Lista del necessario vuota. Vai su "Necessario" per aggiungere gli ingredienti che ti servono.</div>';
+    exportContainer.innerHTML = '';
     return;
   }
 
@@ -1407,7 +1449,7 @@ function calculateShopping() {
           <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" ${s.checked ? 'checked' : ''}>
           <div class="item-name">${s.name}</div>
         </div>
-        <div style="font-weight:700; color:#e65100; font-size:18px;">${s.diff} ${s.unit}</div>
+        <div style="font-weight:700; color:#e65100; font-size:18px;">${formatNumber(s.diff)} ${s.unit}</div>
       </div>
     `).join('');
   }
@@ -1419,16 +1461,241 @@ function calculateShopping() {
           <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')" checked>
           <div class="item-name">${s.name}</div>
         </div>
-        <div style="font-weight:700; color:#666; font-size:18px;">${s.diff} ${s.unit}</div>
+        <div style="font-weight:700; color:#666; font-size:18px;">${formatNumber(s.diff)} ${s.unit}</div>
       </div>
     `).join('');
   }
 
   if (notChecked.length === 0 && checked.length === 0 && mismatch.length === 0) {
     html = '<div class="empty" style="background:#e8f5e9; border-radius:6px; padding:20px;">🎉 Hai già tutto in dispensa!</div>';
+    exportContainer.innerHTML = '';
+  } else {
+    // Mostra pulsanti esportazione solo se ci sono articoli da comprare
+    if (toBuy.length > 0) {
+      exportContainer.innerHTML = `
+        <div class="export-buttons">
+          <button class="export-btn-copy" onclick="copyShoppingList()">📋 Copia lista</button>
+          <button class="export-btn-share" onclick="shareShoppingList()">📱 Condividi</button>
+          <button class="export-btn-open" onclick="openCheckableList()">📄 Apri lista spuntabile</button>
+        </div>
+      `;
+    } else {
+      exportContainer.innerHTML = '';
+    }
   }
 
   result.innerHTML = html;
+}
+
+// ============================================================
+// ESPORTAZIONE LISTA SPESA
+// ============================================================
+function getShoppingListData() {
+  const neededKeys = Object.keys(needed);
+  const items = [];
+  
+  neededKeys.forEach(name => {
+    const need = needed[name];
+    const have = pantry[name];
+    
+    if (have && have.unit !== need.unit) return;
+    
+    const haveQty = have ? have.qty : 0;
+    const diff = need.qty - haveQty;
+    
+    if (diff > 0) {
+      items.push({ name, qty: diff, unit: need.unit });
+    }
+  });
+  
+  return items.sort((a, b) => a.name.localeCompare(b.name, 'it'));
+}
+
+function copyShoppingList() {
+  const items = getShoppingListData();
+  if (items.length === 0) {
+    alert('Nessun ingrediente da comprare!');
+    return;
+  }
+
+  const text = '🛒 Lista della spesa\n\n' + 
+    items.map(i => `☐ ${i.name} - ${formatNumber(i.qty)} ${i.unit}`).join('\n');
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('✅ Lista copiata negli appunti!');
+  }).catch(err => {
+    alert('❌ Errore nella copia: ' + err.message);
+  });
+}
+
+function shareShoppingList() {
+  const items = getShoppingListData();
+  if (items.length === 0) {
+    alert('Nessun ingrediente da comprare!');
+    return;
+  }
+
+  const text = '🛒 Lista della spesa\n\n' + 
+    items.map(i => `☐ ${i.name} - ${formatNumber(i.qty)} ${i.unit}`).join('\n');
+
+  if (navigator.share) {
+    navigator.share({
+      title: 'Lista della spesa',
+      text: text
+    }).catch(err => {
+      if (err.name !== 'AbortError') {
+        alert('❌ Errore nella condivisione: ' + err.message);
+      }
+    });
+  } else {
+    alert('Condivisione non supportata dal browser. Usa "Copia lista" e incolla dove vuoi.');
+  }
+}
+
+function openCheckableList() {
+  const items = getShoppingListData();
+  if (items.length === 0) {
+    alert('Nessun ingrediente da comprare!');
+    return;
+  }
+
+  const html = generateCheckableHTML(items);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+
+function generateCheckableHTML(items) {
+  return `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista della spesa</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f1ea;
+    color: #333;
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  h1 {
+    text-align: center;
+    color: #b85c38;
+    margin-bottom: 20px;
+    font-size: 24px;
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: #fff3e0;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border-left: 4px solid #ff9800;
+    transition: all 0.3s;
+  }
+  .item.checked {
+    background: #e8f5e9;
+    border-left-color: #4caf50;
+    opacity: 0.7;
+  }
+  .item.checked span {
+    text-decoration: line-through;
+    color: #666;
+  }
+  input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    margin-right: 15px;
+    cursor: pointer;
+  }
+  span {
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .summary {
+    text-align: center;
+    margin-top: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    color: #666;
+  }
+  @media (max-width: 768px) {
+    body { padding: 10px; }
+    h1 { font-size: 20px; }
+    .item { padding: 12px; }
+    input[type="checkbox"] { width: 28px; height: 28px; }
+  }
+</style>
+</head>
+<body>
+  <h1>🛒 Lista della spesa</h1>
+  <div id="list">
+    ${items.map((item, i) => `
+      <div class="item" id="item-${i}">
+        <input type="checkbox" onchange="toggleItem(${i})" id="checkbox-${i}">
+        <span>${item.name} - ${formatNumber(item.qty)} ${item.unit}</span>
+      </div>
+    `).join('')}
+  </div>
+  <div class="summary" id="summary">
+    <span id="checked-count">0</span> / ${items.length} articoli spuntati
+  </div>
+  <script>
+    let checkedCount = 0;
+    const totalItems = ${items.length};
+
+    function toggleItem(i) {
+      const item = document.getElementById('item-' + i);
+      const checkbox = document.getElementById('checkbox-' + i);
+      
+      if (checkbox.checked) {
+        item.classList.add('checked');
+        checkedCount++;
+      } else {
+        item.classList.remove('checked');
+        checkedCount--;
+      }
+      
+      document.getElementById('checked-count').textContent = checkedCount;
+      
+      // Salva stato in localStorage
+      localStorage.setItem('shoppingListChecked', JSON.stringify(getCheckedItems()));
+    }
+
+    function getCheckedItems() {
+      const checked = [];
+      for (let i = 0; i < totalItems; i++) {
+        const checkbox = document.getElementById('checkbox-' + i);
+        if (checkbox && checkbox.checked) {
+          checked.push(i);
+        }
+      }
+      return checked;
+    }
+
+    // Ripristina stato salvato
+    window.onload = function() {
+      const saved = localStorage.getItem('shoppingListChecked');
+      if (saved) {
+        const checkedItems = JSON.parse(saved);
+        checkedItems.forEach(i => {
+          const checkbox = document.getElementById('checkbox-' + i);
+          if (checkbox) {
+            checkbox.checked = true;
+            toggleItem(i);
+          }
+        });
+      }
+    };
+  <\/script>
+</body>
+</html>`;
 }
 
 // ============================================================
