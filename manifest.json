@@ -1,0 +1,20 @@
+{
+  "name": "Dispensa",
+  "short_name": "to COOK",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF7F5",
+  "theme_color": "#FF9800",
+  "icons": [
+    {
+      "src": "icon-cucina.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-cucina.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
