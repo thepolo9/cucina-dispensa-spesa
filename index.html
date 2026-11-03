@@ -17,45 +17,44 @@
 
 <style>
   :root {
-    --primary: #4caf50; /* Verde foglia */
-    --secondary: #81c784; /* Verde chiaro */
-    --bg: #f1f8e9; /* Verde chiarissimo */
-    --card-bg: #ffffff;
-    --text: #33691e; /* Verde scuro */
+    --primary: #ffb74d; /* Oro/Arancio chiaro */
+    --bg: #121212; /* Nero morbido */
+    --card-bg: #1e1e1e; /* Grigio scuro */
+    --text: #e0e0e0;
+    --border: #333;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Verdana', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg);
     color: var(--text);
     padding: 20px;
     max-width: 900px;
     margin: 0 auto;
   }
-  h1 { text-align: center; margin-bottom: 20px; color: var(--primary); font-weight: normal; }
+  h1 { text-align: center; margin-bottom: 20px; color: var(--primary); }
   .header-row { display: flex; justify-content: flex-end; margin-bottom: 15px; }
-  .converter-btn { background: var(--secondary); color: white; padding: 8px 16px; border-radius: 25px; }
-  .tabs { display: flex; gap: 15px; margin-bottom: 25px; justify-content: center; }
+  .converter-btn { background: #333; color: var(--primary); border: 1px solid var(--primary); padding: 8px 16px; border-radius: 6px; }
+  .tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
   .tab {
-    padding: 10px 20px;
+    padding: 12px 20px;
     cursor: pointer;
-    background: white;
-    border: 2px solid var(--secondary);
-    border-radius: 25px;
-    font-size: 14px;
+    background: transparent;
+    border: none;
+    font-size: 15px;
     font-weight: 600;
-    color: var(--text);
+    color: #888;
   }
-  .tab.active { background: var(--primary); color: white; border-color: var(--primary); }
-  .panel { display: none; background: var(--card-bg); padding: 25px; border-radius: 20px; box-shadow: 0 5px 20px rgba(76, 175, 80, 0.1); }
+  .tab.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+  .panel { display: none; background: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border); }
   .panel.active { display: block; }
-  input, select, button { padding: 12px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 15px; }
-  button { background: var(--primary); color: white; border: none; border-radius: 12px; }
-  .item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f9fbe7; border-radius: 15px; margin-bottom: 10px; border-left: 6px solid var(--primary); }
-  .shopping-item { display: flex; justify-content: space-between; padding: 15px; background: #e8f5e9; border-radius: 15px; margin-bottom: 10px; border-left: 6px solid var(--secondary); }
-  .recipe-card { background: white; border: 2px solid #f1f8e9; padding: 15px; border-radius: 15px; margin-bottom: 12px; }
-  .modal { background: white; border-radius: 25px; padding: 30px; max-width: 400px; width: 100%; border: 4px solid var(--bg); }
-  @media (max-width: 768px) { body { padding: 10px; } .tabs { flex-wrap: wrap; } }
+  input, select, button { padding: 12px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 6px; }
+  button { background: var(--primary); color: #121212; border: none; font-weight: 700; }
+  .item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #252525; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid var(--primary); }
+  .shopping-item { display: flex; justify-content: space-between; padding: 15px; background: #2a2a2a; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #666; }
+  .recipe-card { background: #252525; border: 1px solid #333; padding: 15px; border-radius: 6px; margin-bottom: 10px; }
+  .modal { background: #1e1e1e; border-radius: 10px; padding: 25px; max-width: 400px; width: 100%; border: 1px solid #444; }
+  @media (max-width: 768px) { body { padding: 10px; } }
 </style>
 </head>
 <body>
