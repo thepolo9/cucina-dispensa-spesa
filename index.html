@@ -22,10 +22,10 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     
     /* IMMAGINE DI SFONDO */
-    background-image: url('sfondo.jpg');
+    background-image: url('https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=1600&q=80');
     background-size: cover;
     background-position: center;
-    background-attachment: fixed;
+    background-attachment: fixed; /* Su desktop resta fisso */
     background-repeat: no-repeat;
     
     color: #333;
@@ -33,17 +33,19 @@
     max-width: 900px;
     margin: 0 auto;
     min-height: 100vh;
-    position: relative; /* Necessario per il velo */
+    position: relative;
     -webkit-text-size-adjust: 100%;
   }
 
-  /* VELO SEMITRASPARENTE SOPRA L'IMMAGINE */
+  /* VELO SEMITRASPARENTE (Corretto per Mobile) */
   body::before {
     content: "";
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(245, 241, 234, 0.88); /* Colore crema all'88% */
-    z-index: -1; /* Sta dietro al contenuto ma sopra lo sfondo */
+    position: absolute; /* Cambiato da fixed ad absolute per mobile */
+    top: 0; left: 0; 
+    width: 100%; 
+    min-height: 100%; /* Assicura che copra tutta la pagina scorrevole */
+    background: rgba(245, 241, 234, 0.88); 
+    z-index: -1;
   }
 
   h1 { text-align: center; margin-bottom: 5px; color: #b85c38; font-size: 24px; }
@@ -171,7 +173,11 @@
 
   /* RESPONSIVE MOBILE */
   @media (max-width: 768px) {
-    body { padding: 10px; font-size: 16px; }
+    body { 
+      padding: 10px; 
+      font-size: 16px; 
+      background-attachment: scroll; /* Su mobile lo sfondo scorre per evitare bug */
+    }
     h1 { font-size: 22px; }
     .tabs { gap: 3px; }
     .tab { padding: 10px 8px; font-size: 13px; min-width: 70px; }
