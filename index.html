@@ -13,7 +13,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<!-- SortableJS per drag & drop su mobile e desktop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <style>
@@ -95,9 +94,7 @@
     padding: 10px; background: #fafafa; border-radius: 6px; margin-bottom: 8px;
     border-left: 4px solid #b85c38;
     transition: background 0.2s;
-    cursor: grab;
   }
-  .item:active { cursor: grabbing; }
   .item.necessario { border-left-color: #2196f3; }
   .item.mismatch { border-left-color: #ff9800; background: #fff8e1; }
   .item.editing { background: #fff9e6; border-left-color: #ffc107; flex-direction: column; align-items: stretch; gap: 8px; cursor: default; }
@@ -106,15 +103,25 @@
   .item-qty { color: #666; font-size: 13px; }
   .item-actions { display: flex; gap: 5px; flex-shrink: 0; align-items: center; }
   
-  /* Handle per drag & drop */
+  /* Handle per drag & drop - MIGLIORATO PER MOBILE */
   .drag-handle {
     cursor: grab;
-    padding: 4px 8px;
+    padding: 8px 10px;
     color: #999;
-    font-size: 16px;
-    margin-right: 8px;
+    font-size: 18px;
+    margin-left: 8px;
     user-select: none;
     touch-action: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .drag-handle:hover {
+    background: rgba(0,0,0,0.05);
+    color: #666;
   }
   .drag-handle:active { cursor: grabbing; }
   
@@ -127,9 +134,7 @@
     padding: 12px; background: #fff3e0; border-radius: 6px; margin-bottom: 8px;
     border-left: 4px solid #ff9800;
     transition: background 0.2s;
-    cursor: grab;
   }
-  .shopping-item:active { cursor: grabbing; }
   .shopping-item.checked { background: #e8f5e9; border-left-color: #4caf50; opacity: 0.7; cursor: default; }
   .shopping-item.checked .item-name { text-decoration: line-through; color: #666; }
   .shopping-item.mismatch { background: #ffebee; border-left-color: #c0392b; flex-direction: column; align-items: flex-start; gap: 8px; cursor: default; }
@@ -190,9 +195,8 @@
   .recipe-editor-panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
   .recipe-card { 
     background: #fafafa; border: 1px solid #ddd; border-radius: 6px; padding: 12px; 
-    margin-bottom: 10px; cursor: grab; transition: all 0.2s; 
+    margin-bottom: 10px; cursor: pointer; transition: all 0.2s; 
   }
-  .recipe-card:active { cursor: grabbing; }
   .recipe-card:hover { background: #f0f0f0; border-color: #b85c38; }
   .recipe-card.active { background: #fff3e0; border-color: #b85c38; border-width: 2px; }
   .recipe-card-title { font-weight: 600; color: #b85c38; margin-bottom: 3px; word-break: break-word; }
@@ -206,15 +210,13 @@
   }
   .recipe-card-count { font-size: 12px; color: #666; }
   .recipe-card-actions { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
-  .recipe-card-top { display: flex; align-items: flex-start; }
+  .recipe-card-main { display: flex; align-items: flex-start; flex: 1; min-width: 0; }
   .recipe-card-content { flex: 1; min-width: 0; }
   .recipe-ingredient-item { 
     display: flex; align-items: center; padding: 8px; background: #fafafa; 
     border-radius: 4px; margin-bottom: 6px; border-left: 3px solid #9c27b0;
     transition: background 0.2s;
-    cursor: grab;
   }
-  .recipe-ingredient-item:active { cursor: grabbing; }
   .recipe-ingredient-item.editing { background: #fff9e6; border-left-color: #ffc107; flex-direction: column; align-items: stretch; gap: 8px; cursor: default; }
   .recipe-ingredient-item input[type="checkbox"] { width: 18px; height: 18px; margin-right: 10px; cursor: pointer; flex-shrink: 0; }
   .recipe-ingredient-info { flex: 1; min-width: 0; }
@@ -245,8 +247,8 @@
     background: #fff3e0 !important;
   }
   .sortable-drag {
-    opacity: 0.9;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    opacity: 0.95;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
   }
 
   /* RESPONSIVE MOBILE */
@@ -276,6 +278,12 @@
     .edit-form-actions button { flex: 1; }
     .export-buttons { flex-direction: column; }
     .export-buttons button { min-width: 100%; }
+    /* Maniglia più grande su mobile per facilitare il tocco */
+    .drag-handle {
+      padding: 10px 12px;
+      font-size: 20px;
+      margin-left: 10px;
+    }
   }
 
   @media (hover: none) and (pointer: coarse) {
@@ -442,9 +450,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ============================================================
-// LISTA BASE PREDEFINITA
-// ============================================================
 const DEFAULT_INGREDIENTS = [
   "Pasta", "Riso", "Farina", "Farina integrale", "Pane",
   "Olio extravergine d'oliva", "Olio di semi", "Burro",
@@ -462,9 +467,6 @@ const DEFAULT_INGREDIENTS = [
   "Besciamella", "Brodo"
 ];
 
-// ============================================================
-// STATO
-// ============================================================
 let pantry = {};
 let needed = {};
 let recipes = [];
@@ -490,9 +492,6 @@ function setSyncStatus(text, cls) {
   statusEl.className = 'sync-status ' + cls;
 }
 
-// ============================================================
-// FIRESTORE
-// ============================================================
 async function initFirebase() {
   try {
     const docRef = db.collection('appData').doc('main');
@@ -564,9 +563,6 @@ async function save() {
   }
 }
 
-// ============================================================
-// TABS
-// ============================================================
 function showTab(id, evt) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -575,9 +571,6 @@ function showTab(id, evt) {
   if (id === 'spesa') calculateShopping();
 }
 
-// ============================================================
-// UTILITÀ
-// ============================================================
 function capitalizeFirst(str) {
   str = str.trim();
   if (!str) return '';
@@ -665,9 +658,6 @@ function renderAll() {
   }
 }
 
-// ============================================================
-// RICERCA - CLEAR
-// ============================================================
 function clearPantrySearch() {
   document.getElementById('pantry-search').value = '';
   renderPantry();
@@ -925,7 +915,7 @@ function renderNeeded() {
 }
 
 // ============================================================
-// RICETTE - con note e SortableJS
+// RICETTE
 // ============================================================
 function newRecipe() {
   currentRecipeId = Date.now().toString();
@@ -1034,9 +1024,8 @@ function renderRecipesList() {
     <div class="recipe-card ${r.id === currentRecipeId ? 'active' : ''}" 
          data-id="${r.id}"
          onclick="selectRecipe('${r.id}')">
-      <div class="recipe-card-top">
-        <div class="drag-handle" title="Trascina per riordinare">⋮⋮</div>
-        <div class="recipe-card-content">
+      <div style="display: flex; align-items: flex-start;">
+        <div class="recipe-card-content" style="flex:1; min-width:0;">
           <div class="recipe-card-title">${escapeHtml(r.name)}</div>
           ${notesHtml}
           <div class="recipe-card-count">${r.ingredients.length} ingredient${r.ingredients.length === 1 ? 'e' : 'i'}</div>
@@ -1045,12 +1034,12 @@ function renderRecipesList() {
             <button class="small danger" onclick="event.stopPropagation(); deleteRecipe('${r.id}')">🗑️ Elimina</button>
           </div>
         </div>
+        <div class="drag-handle" onclick="event.stopPropagation()" title="Trascina per riordinare">⋮⋮</div>
       </div>
     </div>
   `;
   }).join('');
   
-  // Inizializza SortableJS sulla lista ricette
   initRecipesSortable();
 }
 
@@ -1063,11 +1052,16 @@ function initRecipesSortable() {
   }
   
   recipesSortable = Sortable.create(list, {
-    animation: 150,
+    animation: 200,
     handle: '.drag-handle',
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
     dragClass: 'sortable-drag',
+    delay: 100,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 5,
+    fallbackOnBody: true,
+    forceFallback: true,
     onEnd: function(evt) {
       const searchTerm = (document.getElementById('recipe-search')?.value || '').toLowerCase().trim();
       let filteredRecipes = recipes;
@@ -1082,20 +1076,15 @@ function initRecipesSortable() {
       const newIndex = evt.newIndex;
       if (oldIndex === newIndex) return;
       
-      // Trova gli ID delle ricette nella lista filtrata
-      const oldId = filteredRecipes[oldIndex].id;
-      
-      // Trova le posizioni nell'array recipes originale
-      const originalOldIndex = recipes.findIndex(r => r.id === oldId);
-      
-      // Se c'è una ricerca, non riordinare l'array principale
       if (searchTerm) {
         alert('⚠️ Riordina disabilitato durante la ricerca. Cancella la ricerca per riordinare.');
         renderRecipesList();
         return;
       }
       
-      // Sposta nell'array principale
+      const oldId = filteredRecipes[oldIndex].id;
+      const originalOldIndex = recipes.findIndex(r => r.id === oldId);
+      
       const [moved] = recipes.splice(originalOldIndex, 1);
       recipes.splice(newIndex, 0, moved);
       save();
@@ -1192,7 +1181,6 @@ function renderRecipeIngredientsList() {
     }
     return `
       <div class="recipe-ingredient-item" data-index="${i}">
-        <div class="drag-handle" title="Trascina per riordinare">⋮⋮</div>
         <input type="checkbox" onchange="toggleRecipeIngredientSelection(${i})" ${selectedRecipeIngredients.has(i) ? 'checked' : ''}>
         <div class="recipe-ingredient-info">
           <div class="item-name">${escapeHtml(ing.name)}</div>
@@ -1200,11 +1188,11 @@ function renderRecipeIngredientsList() {
         </div>
         <button class="small edit" onclick="startEditRecipeIngredient(${i})">✏️</button>
         <button class="small danger" onclick="removeRecipeIngredient(${i})">✖</button>
+        <div class="drag-handle" title="Trascina per riordinare">⋮⋮</div>
       </div>
     `;
   }).join('');
   
-  // Inizializza SortableJS sulla lista ingredienti
   initRecipeIngredientsSortable();
 }
 
@@ -1217,21 +1205,24 @@ function initRecipeIngredientsSortable() {
   }
   
   recipeIngredientsSortable = Sortable.create(list, {
-    animation: 150,
+    animation: 200,
     handle: '.drag-handle',
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
     dragClass: 'sortable-drag',
+    delay: 100,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 5,
+    fallbackOnBody: true,
+    forceFallback: true,
     onEnd: function(evt) {
       const oldIndex = evt.oldIndex;
       const newIndex = evt.newIndex;
       if (oldIndex === newIndex) return;
       
-      // Sposta nell'array
       const [moved] = tempRecipeIngredients.splice(oldIndex, 1);
       tempRecipeIngredients.splice(newIndex, 0, moved);
       
-      // Aggiorna le selezioni
       const newSet = new Set();
       selectedRecipeIngredients.forEach(i => {
         if (i === oldIndex) newSet.add(newIndex);
@@ -1339,7 +1330,7 @@ function cancelEditRecipeIngredient() {
 }
 
 // ============================================================
-// SPESA - con SortableJS
+// SPESA
 // ============================================================
 function toggleShoppingItem(name) {
   if (shoppingChecked.has(name)) {
@@ -1442,12 +1433,12 @@ function calculateShopping() {
     html += notChecked.map((s) => {
       return `
       <div class="shopping-item" data-name="${escapeHtml(s.name)}">
-        <div class="drag-handle" title="Trascina per riordinare">⋮⋮</div>
         <div class="shopping-item-content">
           <input type="checkbox" onchange="toggleShoppingItem('${s.name.replace(/'/g,"\\'")}')">
           <div class="item-name">${escapeHtml(s.name)}</div>
         </div>
         <div style="font-weight:700; color:#e65100; font-size:18px;">${formatNumber(s.diff)} ${s.unit}</div>
+        <div class="drag-handle" title="Trascina per riordinare">⋮⋮</div>
       </div>
     `;
     }).join('');
@@ -1489,7 +1480,6 @@ function calculateShopping() {
 
   result.innerHTML = html;
   
-  // Inizializza SortableJS sulla lista spesa
   initShoppingSortable();
 }
 
@@ -1502,17 +1492,21 @@ function initShoppingSortable() {
   }
   
   shoppingSortable = Sortable.create(list, {
-    animation: 150,
+    animation: 200,
     handle: '.drag-handle',
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
     dragClass: 'sortable-drag',
+    delay: 100,
+    delayOnTouchOnly: true,
+    touchStartThreshold: 5,
+    fallbackOnBody: true,
+    forceFallback: true,
     onEnd: function(evt) {
       const oldIndex = evt.oldIndex;
       const newIndex = evt.newIndex;
       if (oldIndex === newIndex) return;
       
-      // Ricostruisci shoppingOrder dalla lista attuale
       const items = Array.from(list.children);
       shoppingOrder = items.map(el => el.dataset.name);
       save();
@@ -1779,18 +1773,12 @@ function convert() {
   resultEl.className = 'conv-result';
 }
 
-// ============================================================
-// DATALIST
-// ============================================================
 function updateDatalists() {
   const allNames = new Set([...ingredientBase]);
   const html = [...allNames].sort((a, b) => a.localeCompare(b, 'it')).map(n => `<option value="${n}">`).join('');
   document.getElementById('ing-list').innerHTML = html;
 }
 
-// ============================================================
-// AVVIO
-// ============================================================
 initFirebase();
 </script>
 
